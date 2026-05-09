@@ -419,7 +419,7 @@
               </button>
               <button type="button" data-group="status" data-value="deposit" onclick="selectToggle('status','deposit')"
                 class="toggle-btn py-3 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">
-                💰 入金
+                💰 入出金
               </button>
             </div>
             <input type="hidden" id="f-status" value="">
@@ -823,18 +823,30 @@
         <!-- 合計損益 (full-width, horizontal) -->
         <div class="rounded-xl p-3" style="background:#f0fdf4;border:1px solid #bbf7d0">
           <div class="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-2">合計損益</div>
-          <div class="flex gap-2">
-            <div class="flex-1">
-              <div id="stat-total" class="text-base font-black text-emerald-600 leading-none">—</div>
-              <div class="text-[9px] text-emerald-400 mt-0.5">エントリー</div>
+          <div class="flex items-center gap-3">
+            <!-- 左: エントリー・入金計・仮想 -->
+            <div class="flex-1 space-y-1.5">
+              <div class="flex justify-between items-center">
+                <span class="text-[10px] font-semibold text-emerald-500">エントリー</span>
+                <div id="stat-total" class="text-sm font-black text-emerald-600 leading-none">—</div>
+              </div>
+              <div id="stat-deposit-col" class="hidden flex justify-between items-center">
+                <span class="text-[10px] font-semibold text-emerald-600">入金計</span>
+                <div id="stat-deposit-total" class="text-sm font-black text-emerald-700 leading-none">—</div>
+              </div>
+              <div id="stat-withdrawal-col" class="hidden flex justify-between items-center">
+                <span class="text-[10px] font-semibold text-red-600">出金計</span>
+                <div id="stat-withdrawal-total" class="text-sm font-black text-red-600 leading-none">—</div>
+              </div>
+              <div class="stat-virtual-row hidden flex justify-between items-center">
+                <span class="text-[10px] font-semibold text-purple-400">仮想</span>
+                <div id="stat-virtual-pnl" class="text-sm font-black text-purple-600 leading-none">—</div>
+              </div>
             </div>
-            <div id="stat-deposit-col" class="hidden flex-1 pl-3" style="border-left:1px dashed #86efac">
-              <div id="stat-deposit-total" class="text-base font-black text-emerald-700 leading-none">—</div>
-              <div class="text-[9px] text-emerald-500 mt-0.5">入金計</div>
-            </div>
-            <div class="stat-virtual-row hidden flex-1 pl-3" style="border-left:1px dashed #86efac">
-              <div id="stat-virtual-pnl" class="text-base font-black text-purple-600 leading-none">—</div>
-              <div class="text-[9px] text-purple-400 mt-0.5">仮想</div>
+            <!-- 右: 総資金（エントリー損益＋入金計） -->
+            <div id="stat-combined-col" class="hidden pl-3 text-right" style="border-left:1px solid #86efac;min-width:100px">
+              <div class="text-[9px] font-semibold text-slate-400 mb-0.5">総資金</div>
+              <div id="stat-combined-total" class="text-lg font-black leading-none">—</div>
             </div>
           </div>
         </div>
@@ -1302,22 +1314,19 @@
         </div>
 
         <!-- オプション設定 -->
-        <div class="space-y-2.5 mb-4 p-3 bg-slate-50 rounded-xl">
-          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">控除オプション</p>
+        <div class="space-y-2 mb-4 p-3 bg-slate-50 rounded-xl">
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">控除オプション</p>
 
           <!-- 基礎控除 -->
           <div>
             <label class="flex items-center gap-2 cursor-pointer select-none">
               <input type="checkbox" id="tax-apply-basic" checked onchange="renderTaxSim()"
                 class="w-4 h-4 rounded accent-blue-500">
-              <span class="text-xs font-semibold text-slate-600">基礎控除を適用（48万円）</span>
-              <span class="tax-tip" data-tip="すべての納税者に認められる控除。合計所得2,400万円以下で48万円が課税所得から差し引かれます。">?</span>
+              <span class="text-xs font-semibold text-slate-600 flex-1">基礎控除（48万円）</span>
+              <span id="tax-basic-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0">−480,000円</span>
             </label>
             <div id="tax-other-income-block" class="mt-2 pl-6">
-              <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                その他の雑所得（円）
-                <span class="tax-tip" data-tip="FX利益以外の雑所得（副業・アフィリエイト・暗号資産など）。FX利益と合算して課税されます。">?</span>
-              </label>
+              <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">その他の雑所得（円）</label>
               <input type="number" id="tax-other-income" placeholder="0" min="0" step="10000"
                 oninput="renderTaxSim()"
                 class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
@@ -1329,17 +1338,14 @@
             <label class="flex items-center gap-2 cursor-pointer select-none">
               <input type="checkbox" id="tax-apply-salary-deduction" checked onchange="renderTaxSim()"
                 class="w-4 h-4 rounded accent-blue-500">
-              <span class="text-xs font-semibold text-slate-600">給与所得控除を適用</span>
-              <span class="tax-tip" data-tip="給与収入に応じて自動計算される控除。収入162.5万円以下=55万円、180万円以下=収入×40%-10万円、360万円以下=収入×30%+8万円、660万円以下=収入×20%+44万円、850万円以下=収入×10%+110万円、850万円超=195万円（上限）。">?</span>
+              <span class="text-xs font-semibold text-slate-600 flex-1">給与所得控除</span>
+              <span id="tax-salary-ded-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dbeafe;color:#2563eb;border:1px solid #bfdbfe">−</span>
             </label>
           </div>
 
           <!-- 住民税均等割 -->
           <div>
-            <label class="flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
-              住民税 均等割（円）
-              <span class="tax-tip" data-tip="所得に関わらず定額で課税される住民税。市区町村民税3,500円＋道府県民税1,500円が標準（合計5,000円）ですが、自治体により異なります。">?</span>
-            </label>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">住民税 均等割（円）</label>
             <input type="number" id="tax-resident-flat" value="5000" min="0" step="100"
               oninput="renderTaxSim()"
               class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
@@ -1861,7 +1867,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         }
         // pnl-label / reason-label: deposit のときラベルを変更
         const pnlLabel = document.getElementById('f-pnl-label');
-        if (pnlLabel) pnlLabel.textContent = isDepositStatus(value) ? '入金額（円）' : '損益（円）';
+        if (pnlLabel) pnlLabel.textContent = isDepositStatus(value) ? '金額（円）<span style="font-size:10px;color:#94a3b8">入金は正、出金は負</span>' : '損益（円）';
         const reasonLabel = document.getElementById('f-reason-label');
         if (reasonLabel) reasonLabel.textContent = isDepositStatus(value) ? 'メモ（任意）' : '理由・メモ';
       }
@@ -1871,7 +1877,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         if (wrap) wrap.classList.toggle('edit-deposit', isDepositStatus(value));
         // edit pnl/reason ラベルもあれば変更
         const epLabel = document.getElementById('e-pnl-label');
-        if (epLabel) epLabel.textContent = isDepositStatus(value) ? '入金額（円）' : '損益（円）';
+        if (epLabel) epLabel.innerHTML = isDepositStatus(value) ? '金額（円）<span style="font-size:10px;color:#94a3b8">入金は正、出金は負</span>' : '損益（円）';
       } else {
         const form = document.getElementById('trade-form');
         if (form) form.classList.toggle('is-deposit', isDepositStatus(value));
@@ -1963,7 +1969,11 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     trades.unshift(trade);
     dbSave(trades);
     resetRegisterForm();
-    showToast(isDepositStatus(status) ? '💰 入金を記録しました！' : '✓ 保存しました！');
+    if (isDepositStatus(status)) {
+      showToast(pnl > 0 ? '💰 入金を記録しました！' : '💸 出金を記録しました！');
+    } else {
+      showToast('✓ 保存しました！');
+    }
   }
 
   function resetRegisterForm() {
@@ -2140,14 +2150,18 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
            class="w-5 h-5 rounded accent-red-500 flex-shrink-0 cursor-pointer mr-1">`
       : '';
 
-    // Deposit cards: simple layout
+    // Deposit/Withdrawal cards: simple layout
     if (isDepositStatus(t.status)) {
       const dateStr = fmtDate(t.datetimeEntry || t.datetime);
-      return `<div class="bg-white rounded-2xl p-3.5 shadow-sm mb-1 ${isSelected ? 'ring-2 ring-red-400' : ''}" style="border-left:3px solid #10b981" onclick="${selectMode ? `toggleTradeSelect('${t.id}')` : ''}">
+      const isWithdrawal = t.pnl < 0;
+      const borderColor = isWithdrawal ? '#ef4444' : '#10b981';
+      const badgeLabel = isWithdrawal ? '💸 出金' : '💰 入金';
+      const badgeColor = isWithdrawal ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700';
+      return `<div class="bg-white rounded-2xl p-3.5 shadow-sm mb-1 ${isSelected ? 'ring-2 ring-red-400' : ''}" style="border-left:3px solid ${borderColor}" onclick="${selectMode ? `toggleTradeSelect('${t.id}')` : ''}">
         <div class="flex items-start justify-between mb-1">
           <div class="flex items-center flex-wrap gap-1.5 flex-1 min-w-0 pr-1">
             ${checkboxHtml}
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge(t.status)}">${statusLabel(t.status)}</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${badgeColor}">${badgeLabel}</span>
           </div>
           <div class="flex items-center gap-0.5 flex-shrink-0">
             <span class="text-base font-black mr-1 ${t.pnl >= 0 ? 'text-emerald-600' : 'text-red-500'}">${pnlStr}</span>
@@ -2454,7 +2468,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2" id="e-pnl-label">${isDepositStatus(t.status) ? '入金額（円）' : '損益（円）'}</label>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2" id="e-pnl-label">${isDepositStatus(t.status) ? '金額（円）<span style="font-size:10px;color:#94a3b8">入金は正、出金は負</span>' : '損益（円）'}</label>
           <input type="number" id="e-pnl" value="${t.pnl}" step="1"
             class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
         </div>
@@ -2641,7 +2655,12 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     dbSave(trades);
     closeEditModal();
     renderHistory();
-    showToast('✓ 更新しました！');
+    const editedPnl = parseFloat(document.getElementById('e-pnl').value) || 0;
+    if (isDepositStatus(newStatus)) {
+      showToast(editedPnl > 0 ? '💰 入金を更新しました！' : '💸 出金を更新しました！');
+    } else {
+      showToast('✓ 更新しました！');
+    }
   }
 
   function closeEditModal() {
@@ -2753,18 +2772,46 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     // 合計損益 tile
     const statTotalEl = document.getElementById('stat-total');
     statTotalEl.textContent = seg.total > 0 ? (seg.sumPnl >= 0 ? '+' : '') + Math.round(seg.sumPnl).toLocaleString() + '円' : '—';
-    statTotalEl.className = 'text-base font-black leading-none ' + (seg.sumPnl >= 0 ? 'text-emerald-600' : 'text-red-500');
-    // 入金計 tile
+    statTotalEl.className = 'text-sm font-black leading-none ' + (seg.sumPnl >= 0 ? 'text-emerald-600' : 'text-red-500');
+    // 入金計・出金計 tile
     const deposits = trades.filter(t => isDepositStatus(t.status));
-    const depositSum = deposits.reduce((s, t) => s + (t.pnl || 0), 0);
+    const inflows = deposits.filter(t => (t.pnl || 0) > 0);
+    const outflows = deposits.filter(t => (t.pnl || 0) < 0);
+    const inflowSum = inflows.reduce((s, t) => s + (t.pnl || 0), 0);
+    const outflowSum = outflows.reduce((s, t) => s + (t.pnl || 0), 0); // negative sum
+
     const depositCol = document.getElementById('stat-deposit-col');
     const depositEl  = document.getElementById('stat-deposit-total');
     if (depositCol && depositEl) {
-      if (deposits.length > 0) {
+      if (inflows.length > 0) {
         depositCol.classList.remove('hidden');
-        depositEl.textContent = (depositSum >= 0 ? '+' : '') + depositSum.toLocaleString() + '円';
+        depositEl.textContent = (inflowSum >= 0 ? '+' : '') + inflowSum.toLocaleString() + '円';
       } else {
         depositCol.classList.add('hidden');
+      }
+    }
+
+    const withdrawalCol = document.getElementById('stat-withdrawal-col');
+    const withdrawalEl  = document.getElementById('stat-withdrawal-total');
+    if (withdrawalCol && withdrawalEl) {
+      if (outflows.length > 0) {
+        withdrawalCol.classList.remove('hidden');
+        withdrawalEl.textContent = '−' + Math.abs(outflowSum).toLocaleString() + '円';
+      } else {
+        withdrawalCol.classList.add('hidden');
+      }
+    }
+    // 総資金タイル（エントリー損益 + 入金計 + 出金計）
+    const combinedCol = document.getElementById('stat-combined-col');
+    const combinedTotalEl = document.getElementById('stat-combined-total');
+    if (combinedCol && combinedTotalEl) {
+      if (seg.total > 0 || deposits.length > 0) {
+        const combinedVal = Math.round(seg.sumPnl) + inflowSum + outflowSum;
+        combinedCol.classList.remove('hidden');
+        combinedTotalEl.textContent = (combinedVal >= 0 ? '+' : '') + combinedVal.toLocaleString() + '円';
+        combinedTotalEl.style.color = combinedVal >= 0 ? '#059669' : '#ef4444';
+      } else {
+        combinedCol.classList.add('hidden');
       }
     }
     // 取引数 tile
@@ -4257,6 +4304,18 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
       salaryDedBlock.classList.toggle('hidden', salaryIncome <= 0);
     }
 
+    // 控除バッジの更新（早期returnより前に実施）
+    const basicBadge = document.getElementById('tax-basic-badge');
+    if (basicBadge) basicBadge.style.display = applyBasic ? '' : 'none';
+    if (salaryIncome > 0) {
+      const salaryDedBadge = document.getElementById('tax-salary-ded-badge');
+      if (salaryDedBadge) {
+        const badgeAmt = calcSalaryDeduction(salaryIncome);
+        salaryDedBadge.style.display = applySalaryDed ? '' : 'none';
+        if (applySalaryDed) salaryDedBadge.textContent = '−' + badgeAmt.toLocaleString() + '円';
+      }
+    }
+
     const resultArea  = document.getElementById('tax-result-area');
     const emptyState  = document.getElementById('tax-empty-state');
 
@@ -5271,7 +5330,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     events.forEach(t => {
       capital += t.pnl;
       if (isDepositStatus(t.status)) {
-        labels.push('💰');
+        labels.push(t.pnl > 0 ? '💰' : '💸');
       } else {
         entryIdx++;
         labels.push('#' + entryIdx);
