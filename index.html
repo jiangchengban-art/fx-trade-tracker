@@ -973,96 +973,10 @@
         </div>
       </div>
 
-      <!-- Breakdown tabs (手法/時間足/メイン通貨/サブ通貨/MA収束) -->
+      <!-- MA収束〜拡散期間 -->
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
-        <h3 class="text-sm font-bold text-slate-600 mb-3">成績内訳</h3>
-        <!-- Tab buttons -->
-        <div class="flex gap-1 mb-3 p-1 rounded-xl flex-wrap" style="background:#f1f5f9">
-          <button onclick="switchBreakdownTab('method')" id="bdtab-method"
-            class="breakdown-tab flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all active-tab">手法別</button>
-          <button onclick="switchBreakdownTab('timeframe')" id="bdtab-timeframe"
-            class="breakdown-tab flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all inactive-tab">時間足別</button>
-          <button onclick="switchBreakdownTab('main')" id="bdtab-main"
-            class="breakdown-tab flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all inactive-tab">メイン通貨</button>
-          <button onclick="switchBreakdownTab('sub')" id="bdtab-sub"
-            class="breakdown-tab flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all inactive-tab">サブ通貨</button>
-          <button onclick="switchBreakdownTab('maconv')" id="bdtab-maconv"
-            class="breakdown-tab flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all inactive-tab">MA収束</button>
-        </div>
-
-        <!-- Method pane -->
-        <div id="bdpane-method">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs text-slate-400 flex-1">手法別成績</span>
-            <select id="bd-method-filter" onchange="renderBreakdowns()"
-              class="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-slate-600">
-              <option value="">全て</option>
-              <option value="1">手法①</option>
-              <option value="2">手法②</option>
-              <option value="other">その他</option>
-            </select>
-          </div>
-          <div id="method-breakdown"></div>
-        </div>
-
-        <!-- Timeframe pane -->
-        <div id="bdpane-timeframe" class="hidden">
-          <div class="flex items-center gap-2 mb-3 flex-wrap">
-            <span class="text-xs text-slate-400 flex-1">時間足別成績</span>
-            <select id="bd-tf-time" onchange="renderBreakdowns()"
-              class="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-slate-600">
-              <option value="">全時間足</option>
-              <option value="H1">H1（1時間足）</option>
-              <option value="M15">M15（15分足）</option>
-            </select>
-            <select id="bd-tf-status" onchange="renderBreakdowns()"
-              class="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-slate-600">
-              <option value="">全ステータス</option>
-              <option value="entry">エントリー</option>
-              <option value="through">スルー</option>
-              <option value="miss">ミス</option>
-            </select>
-          </div>
-          <div id="timeframe-breakdown"></div>
-        </div>
-
-        <!-- Main pair pane -->
-        <div id="bdpane-main" class="hidden">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs text-slate-400 flex-1">メイン通貨別成績</span>
-            <select id="bd-main-status" onchange="renderBreakdowns()"
-              class="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-slate-600">
-              <option value="">全ステータス</option>
-              <option value="entry">エントリー</option>
-              <option value="through">スルー</option>
-              <option value="miss">ミス</option>
-            </select>
-          </div>
-          <div id="mainpair-breakdown"></div>
-        </div>
-
-        <!-- Sub pair pane -->
-        <div id="bdpane-sub" class="hidden">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs text-slate-400 flex-1">サブ通貨別成績</span>
-            <select id="bd-sub-status" onchange="renderBreakdowns()"
-              class="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white text-slate-600">
-              <option value="">全ステータス</option>
-              <option value="entry">エントリー</option>
-              <option value="through">スルー</option>
-              <option value="miss">ミス</option>
-            </select>
-          </div>
-          <div id="subpair-breakdown"></div>
-        </div>
-
-        <!-- MA収束〜拡散期間 pane -->
-        <div id="bdpane-maconv" class="hidden">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs text-slate-400 flex-1">📐 MA収束〜拡散期間（GC/DC後→拡散まで）</span>
-          </div>
-          <div id="ma-conv-stats"></div>
-        </div>
+        <h3 class="text-sm font-bold text-slate-600 mb-3">📐 MA収束〜拡散期間</h3>
+        <div id="ma-conv-stats"></div>
       </div>
 
       <!-- Calendar + Chance Rate -->
@@ -1117,51 +1031,6 @@
 
       </div>
 
-      <!-- Capital simulation from real trades -->
-      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
-        <button onclick="toggleCollapse('cap-sim-body','cap-sim-arrow')"
-          class="flex items-center gap-1 w-full text-left mb-3 active:opacity-70 transition-opacity">
-          <h3 class="text-sm font-bold text-slate-600 flex-1">実資金推移シミュレーション</h3>
-          <svg id="cap-sim-arrow" class="w-3.5 h-3.5 transition-transform duration-200" style="color:#94a3b8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
-          </svg>
-        </button>
-        <div id="cap-sim-body" class="hidden">
-        <div class="mb-3">
-          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">初期資金（円）</label>
-          <div class="flex gap-1.5 mb-2 flex-wrap">
-            <button onclick="statsSetCapital(100000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">10万</button>
-            <button onclick="statsSetCapital(300000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">30万</button>
-            <button onclick="statsSetCapital(500000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">50万</button>
-            <button onclick="statsSetCapital(1000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">100万</button>
-            <button onclick="statsSetCapital(3000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">300万</button>
-            <button onclick="statsSetCapital(5000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">500万</button>
-            <button onclick="statsSetCapital(10000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 active:scale-95 transition-all">1000万</button>
-          </div>
-          <input type="number" id="cap-initial" placeholder="直接入力も可" step="10000" min="1"
-            oninput="renderCapitalChart()"
-            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
-        </div>
-        <div id="cap-stats" class="grid grid-cols-3 gap-2 mb-3 hidden">
-          <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-            <div class="text-xs text-slate-400 mb-0.5">現在資金</div>
-            <div id="cap-current" class="text-sm font-bold text-slate-700">−</div>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-            <div class="text-xs text-slate-400 mb-0.5">増減額</div>
-            <div id="cap-delta" class="text-sm font-bold">−</div>
-          </div>
-          <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-            <div class="text-xs text-slate-400 mb-0.5">増減率</div>
-            <div id="cap-rate" class="text-sm font-bold">−</div>
-          </div>
-        </div>
-        <div id="cap-empty" class="text-xs text-slate-300 text-center py-6">エントリーのデータがありません</div>
-        <div style="position:relative;height:180px" id="cap-chart-wrap" class="hidden">
-          <canvas id="chart-capital"></canvas>
-        </div>
-        </div><!-- /cap-sim-body -->
-      </div>
     </div>
 
     <!-- ========== TAB: まとめ ========== -->
@@ -1764,7 +1633,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'history') renderHistory();
     if (tab === 'stats')   { renderStats(); renderCalendar(); renderChanceRate(); }
-    if (tab === 'summary') { renderSummary(); renderSimulation(); initChanceMemos(); updateSyncUI(); renderTaxSim(); updateBackupReminder(); }
+    if (tab === 'summary') { renderSummary(); initChanceMemos(); updateSyncUI(); renderTaxSim(); updateBackupReminder(); }
   }
 
   // ============================================================
@@ -3315,6 +3184,43 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
              worst: worst === Infinity ? 0 : worst };
   }
 
+  // スタック方式（仮想シミュと同じロジック）でスルー理由別を集計
+  function computeSkipStackStats(trades, risk) {
+    const sorted = [...trades].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    let capital = risk, curRisk = risk;
+    const stack = [];
+    let total = 0, wins = 0, losses = 0;
+    let curStreak = 0, curLoseStreak = 0, maxStreak = 0, maxLoseStreak = 0;
+    sorted.forEach(t => {
+      const cfg = SIM_RESULT[t.result];
+      if (!cfg) return;
+      total++;
+      const pnl = curRisk * cfg.mult;
+      capital += pnl;
+      if (t.result === 'stoploss') {
+        losses++;
+        curStreak = 0;
+        curLoseStreak++;
+        if (curLoseStreak > maxLoseStreak) maxLoseStreak = curLoseStreak;
+        curRisk = stack.length > 0 ? stack.pop() : risk;
+      } else if (t.result === 'breakeven') {
+        curStreak = 0; curLoseStreak = 0;
+      } else {
+        wins++;
+        curLoseStreak = 0;
+        curStreak++;
+        if (curStreak > maxStreak) maxStreak = curStreak;
+        stack.push(curRisk);
+        curRisk = Math.abs(pnl);
+      }
+    });
+    if (total === 0) return null;
+    const delta = capital - risk;
+    const growthPct = ((capital / risk - 1) * 100).toFixed(1);
+    const winrate = Math.round(wins / total * 100);
+    return { total, wins, losses, capital, delta, growthPct, winrate, maxStreak, maxLoseStreak };
+  }
+
   function getSkipRisk() {
     return parseFloat(document.getElementById('skip-sim-risk')?.value) || 0;
   }
@@ -3385,20 +3291,21 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
       const trades = groups[r.key];
       // リスク額が入力されていればシム計算、なければ件数と結果割合のみ
       if (risk > 0) {
-        const s = computeSkipSimStats(trades, risk);
+        const s = computeSkipStackStats(trades, risk);
         if (!s) {
           return `<div class="py-2.5 border-b border-slate-50 last:border-0">
             <span class="text-xs font-semibold" style="color:${r.color}">${r.label}</span>
             <span class="text-xs ml-2" style="color:#475569">${trades.length}回（結果未入力）</span>
           </div>`;
         }
-        const pnlColor = s.sumPnl >= 0 ? '#10b981' : '#ef4444';
+        const deltaColor = s.delta >= 0 ? '#10b981' : '#ef4444';
+        const growthSign = s.delta >= 0 ? '+' : '';
         const barW = s.winrate;
         return `
         <div class="py-3 border-b border-slate-50 last:border-0">
           <div class="flex items-center justify-between mb-1.5">
             <span class="text-sm font-semibold" style="color:${r.color}">${r.label}</span>
-            <span class="text-sm font-bold" style="color:${pnlColor}">${fmtSigned(s.sumPnl)}円</span>
+            <span class="text-sm font-bold" style="color:${deltaColor}">${fmtSigned(s.delta)}円</span>
           </div>
           <div class="flex items-center gap-2 mb-1.5">
             <div class="flex-1 rounded-full h-1.5" style="background:#2a2a3e">
@@ -3407,10 +3314,10 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
             <span class="text-xs" style="color:#94a3b8">${s.total}回・勝率${s.winrate}%</span>
           </div>
           <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" style="color:#94a3b8">
-            <div>平均 <span style="color:#cbd5e1">${fmtSigned(s.avgPnl)}</span></div>
-            <div>期待値 <span style="color:#a78bfa;font-weight:600">${fmtSigned(s.ev)}円/回</span></div>
-            <div>Best <span class="text-emerald-400">${fmtSigned(s.best)}</span></div>
-            <div>Worst <span class="text-red-400">${fmtSigned(s.worst)}</span></div>
+            <div>初期 <span style="color:#cbd5e1">${fmt(risk)}円</span></div>
+            <div>最終 <span style="color:${deltaColor};font-weight:600">${fmt(s.capital)}円</span></div>
+            <div>増減率 <span style="color:${deltaColor};font-weight:600">${growthSign}${s.growthPct}%</span></div>
+            <div>連勝 <span class="text-emerald-400">${s.maxStreak}</span> / 連敗 <span class="text-red-400">${s.maxLoseStreak}</span></div>
           </div>
         </div>`;
       } else {
