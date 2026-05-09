@@ -731,13 +731,13 @@
       <div class="bg-white rounded-2xl p-1.5 shadow-sm mb-4">
         <div class="grid grid-cols-5 gap-1">
           <button onclick="setStatsPeriod('all')" data-period="all"
-            class="period-btn py-2 rounded-xl text-xs font-medium text-slate-500 transition-all">全期間</button>
+            class="period-btn py-2 rounded-xl text-xs font-medium bg-blue-600 text-white transition-all">全期間</button>
           <button onclick="setStatsPeriod('custom')" data-period="custom"
             class="period-btn py-2 rounded-xl text-xs font-medium text-slate-500 transition-all">指定</button>
           <button onclick="setStatsPeriod('3month')" data-period="3month"
             class="period-btn py-2 rounded-xl text-xs font-medium text-slate-500 transition-all">3ヶ月</button>
           <button onclick="setStatsPeriod('month')" data-period="month"
-            class="period-btn py-2 rounded-xl text-xs font-medium bg-blue-600 text-white transition-all">月</button>
+            class="period-btn py-2 rounded-xl text-xs font-medium text-slate-500 transition-all">月</button>
           <button onclick="setStatsPeriod('week')" data-period="week"
             class="period-btn py-2 rounded-xl text-xs font-medium text-slate-500 transition-all">週</button>
         </div>
@@ -945,42 +945,6 @@
           <div id="skip-sim-trade-rows" class="space-y-2"></div>
         </div>
 
-        <!-- 仮想資金推移シミュレーション -->
-        <div class="mb-4 pt-3" style="border-top:1px solid #e2e8f0">
-          <h4 class="text-xs font-bold text-slate-600 mb-3">📈 仮想資金推移シミュレーション</h4>
-          <div class="mb-3">
-            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">初期資金（円）</label>
-            <div class="flex gap-1.5 mb-2 flex-wrap">
-              <button onclick="statsSetSkipCapital(100000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">10万</button>
-              <button onclick="statsSetSkipCapital(300000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">30万</button>
-              <button onclick="statsSetSkipCapital(500000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">50万</button>
-              <button onclick="statsSetSkipCapital(1000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">100万</button>
-              <button onclick="statsSetSkipCapital(3000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">300万</button>
-              <button onclick="statsSetSkipCapital(5000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-purple-50 hover:border-purple-300 hover:text-purple-600 active:scale-95 transition-all">500万</button>
-            </div>
-            <input type="number" id="skip-cap-initial" placeholder="直接入力も可" step="10000" min="1"
-              oninput="renderSkipCapitalChart()"
-              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 select-text">
-          </div>
-          <div id="skip-cap-stats" class="grid grid-cols-3 gap-2 mb-3 hidden">
-            <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-              <div class="text-xs text-slate-400 mb-0.5">仮想資金</div>
-              <div id="skip-cap-current" class="text-sm font-bold text-slate-700">−</div>
-            </div>
-            <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-              <div class="text-xs text-slate-400 mb-0.5">増減額</div>
-              <div id="skip-cap-delta" class="text-sm font-bold">−</div>
-            </div>
-            <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-              <div class="text-xs text-slate-400 mb-0.5">増減率</div>
-              <div id="skip-cap-rate" class="text-sm font-bold">−</div>
-            </div>
-          </div>
-          <div id="skip-cap-empty" class="text-xs text-slate-300 text-center py-4">初期資金とリスク額を入力してください</div>
-          <div style="position:relative;height:160px" id="skip-cap-chart-wrap" class="hidden">
-            <canvas id="chart-skip-capital"></canvas>
-          </div>
-        </div>
 
         <h4 class="text-xs font-bold text-slate-500 mb-2 mt-4 uppercase tracking-wide">スルー理由別成績</h4>
         <div id="skip-by-reason"></div>
@@ -1345,10 +1309,18 @@
 
           <!-- 住民税均等割 -->
           <div>
-            <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">住民税 均等割（円）</label>
-            <input type="number" id="tax-resident-flat" value="5000" min="0" step="100"
-              oninput="renderTaxSim()"
-              class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="tax-apply-resident-flat" checked onchange="renderTaxSim()"
+                class="w-4 h-4 rounded accent-blue-500">
+              <span class="text-xs font-semibold text-slate-600 flex-1">住民税 均等割</span>
+              <span id="tax-resident-flat-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca">+5,000円</span>
+            </label>
+            <div id="tax-resident-flat-block" class="mt-2 pl-6">
+              <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">金額（円）</label>
+              <input type="number" id="tax-resident-flat" value="5000" min="0" step="100"
+                oninput="renderTaxSim()"
+                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+            </div>
           </div>
         </div>
 
@@ -1675,7 +1647,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   // STATE
   // ============================================================
   let currentTab   = 'register';
-  let statsPeriod  = 'month';
+  let statsPeriod  = 'all';
 
   // Multi-select filter state
   const activeFilters = {
@@ -1757,6 +1729,12 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     checkOnboarding();
     // Last-entry banner
     checkLastEntryBanner();
+
+    // チャンスメモを確実に保存（iOS Safari でバックグラウンド kill 対策）
+    window.addEventListener('pagehide', saveChanceMemos);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveChanceMemos();
+    });
   });
 
   function setDefaultDatetime() {
@@ -1867,7 +1845,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         }
         // pnl-label / reason-label: deposit のときラベルを変更
         const pnlLabel = document.getElementById('f-pnl-label');
-        if (pnlLabel) pnlLabel.textContent = isDepositStatus(value) ? '金額（円）<span style="font-size:10px;color:#94a3b8">入金は正、出金は負</span>' : '損益（円）';
+        if (pnlLabel) pnlLabel.innerHTML = isDepositStatus(value) ? '金額（円）<span style="font-size:10px;color:#94a3b8">入金は正、出金は負</span>' : '損益（円）';
         const reasonLabel = document.getElementById('f-reason-label');
         if (reasonLabel) reasonLabel.textContent = isDepositStatus(value) ? 'メモ（任意）' : '理由・メモ';
       }
@@ -2363,7 +2341,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     const subPairs  = ['','EUR/GBP','AUD/NZD','EUR/AUD','GBP/AUD','EUR/NZD','GBP/NZD','EUR/CHF','GBP/CHF','EUR/CAD','GBP/CAD'];
     const curMain   = t.pairMain || t.pair || '';
     const curSub    = t.pairSub  || '';
-    const pairMainOptions = mainPairs.map(p => `<option value="${p}" ${curMain === p ? 'selected' : ''}>${p}</option>`).join('');
+    const pairMainOptions = ['', ...mainPairs].map(p => `<option value="${p}" ${curMain === p ? 'selected' : ''}>${p || 'なし'}</option>`).join('');
     const pairSubOptions  = subPairs.map(p => `<option value="${p}" ${curSub === p ? 'selected' : ''}>${p || 'なし'}</option>`).join('');
     const tfOptions = ['M1','M5','M15','M30','H1','H4','D1','W1']
       .map(tf => `<option value="${tf}" ${t.timeframe === tf ? 'selected' : ''}>${tf}</option>`).join('');
@@ -3243,7 +3221,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     renderSkipTradeList(skips);
     renderSkipByReason(skips);
     renderEntryVsSkip(trades);
-    renderSkipCapitalChart();
+
     renderVirtualStatsTile(skips);
     renderSkipTradeSim();
   }
@@ -3304,7 +3282,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
       renderSkipTradeList(skips);
       renderSkipByReason(skips);
       renderEntryVsSkip(trades);
-      renderSkipCapitalChart();
+  
     }
   }
 
@@ -3971,6 +3949,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   }
 
   function saveChanceMemos() {
+    if (!document.getElementById('cm-pair-0')) return;
     const data = [0,1,2].map(i => ({
       pair:      document.getElementById(`cm-pair-${i}`)?.value || '',
       method:    document.getElementById(`cm-method-${i}`)?.value || '',
@@ -3996,6 +3975,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   function initChanceMemos() {
     const container = document.getElementById('chance-memo-slots');
     if (!container) return;
+    saveChanceMemos();
     const memos = loadChanceMemos();
     const SLOT_COLORS = ['#818cf8','#34d399','#fb923c'];
 
@@ -4086,10 +4066,6 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   function statsSetCapital(val) {
     const el = document.getElementById('cap-initial');
     if (el) { el.value = val; renderCapitalChart(); }
-  }
-  function statsSetSkipCapital(val) {
-    const el = document.getElementById('skip-cap-initial');
-    if (el) { el.value = val; renderSkipCapitalChart(); }
   }
 
   let _bdTab = 'method';
@@ -4287,6 +4263,8 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     if (salaryDedEl) salaryDedEl.checked = true;
     const flatEl = document.getElementById('tax-resident-flat');
     if (flatEl) flatEl.value = 5000;
+    const applyFlatEl = document.getElementById('tax-apply-resident-flat');
+    if (applyFlatEl) applyFlatEl.checked = true;
     renderTaxSim();
   }
 
@@ -4296,7 +4274,9 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     const applyBasic  = document.getElementById('tax-apply-basic')?.checked ?? true;
     const otherIncome = Math.max(0, parseFloat(document.getElementById('tax-other-income')?.value) || 0);
     const applySalaryDed = document.getElementById('tax-apply-salary-deduction')?.checked ?? true;
-    const residentFlat = Math.max(0, parseFloat(document.getElementById('tax-resident-flat')?.value) || 0);
+    const applyResidentFlat = document.getElementById('tax-apply-resident-flat')?.checked ?? true;
+    const residentFlatRaw = Math.max(0, parseFloat(document.getElementById('tax-resident-flat')?.value) || 0);
+    const residentFlat = applyResidentFlat ? residentFlatRaw : 0;
 
     // 給与所得控除ブロックの表示制御
     const salaryDedBlock = document.getElementById('tax-salary-deduction-block');
@@ -4315,6 +4295,13 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         if (applySalaryDed) salaryDedBadge.textContent = '−' + badgeAmt.toLocaleString() + '円';
       }
     }
+    const flatBadge = document.getElementById('tax-resident-flat-badge');
+    const flatBlock = document.getElementById('tax-resident-flat-block');
+    if (flatBadge) {
+      flatBadge.style.display = applyResidentFlat ? '' : 'none';
+      if (applyResidentFlat) flatBadge.textContent = '+' + residentFlatRaw.toLocaleString() + '円';
+    }
+    if (flatBlock) flatBlock.classList.toggle('hidden', !applyResidentFlat);
 
     const resultArea  = document.getElementById('tax-result-area');
     const emptyState  = document.getElementById('tax-empty-state');
@@ -5149,87 +5136,6 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
 
   // ============================================================
   // SKIP CAPITAL SIMULATION CHART
-  // ============================================================
-  let chartSkipCapital = null;
-  function renderSkipCapitalChart() {
-    const wrapEl  = document.getElementById('skip-cap-chart-wrap');
-    const statsEl = document.getElementById('skip-cap-stats');
-    const emptyEl = document.getElementById('skip-cap-empty');
-    if (!wrapEl) return;
-
-    const rawCap = document.getElementById('skip-cap-initial')?.value;
-    const initial = parseInt(rawCap) || 0;
-    const risk = getSkipRisk();
-
-    if (!initial || risk <= 0) {
-      if (statsEl) statsEl.classList.add('hidden');
-      wrapEl.classList.add('hidden');
-      if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.textContent = '初期資金とリスク額を入力してください'; }
-      return;
-    }
-
-    const skips = getSkipFilteredTrades().filter(t => isSkipStatus(t.status));
-    const sorted = [...skips]
-      .sort((a, b) => new Date(a.datetimeEntry || a.datetime) - new Date(b.datetimeEntry || b.datetime))
-      .filter(t => calcSkipSimPnl(t, risk) !== null);
-
-    if (sorted.length === 0) {
-      if (statsEl) statsEl.classList.add('hidden');
-      wrapEl.classList.add('hidden');
-      if (emptyEl) { emptyEl.classList.remove('hidden'); emptyEl.textContent = '結果入力済みのスルートレードがありません'; }
-      return;
-    }
-
-    if (emptyEl) emptyEl.classList.add('hidden');
-    wrapEl.classList.remove('hidden');
-
-    let cap = initial;
-    const labels = ['開始'];
-    const data   = [initial];
-    sorted.forEach((t, i) => {
-      cap += calcSkipSimPnl(t, risk);
-      labels.push('#' + (i + 1));
-      data.push(Math.round(cap));
-    });
-
-    const finalCap  = data[data.length - 1];
-    const delta     = finalCap - initial;
-    const deltaRate = ((delta / initial) * 100).toFixed(1);
-    const color     = delta >= 0 ? '#8b5cf6' : '#ef4444';
-
-    if (statsEl) {
-      statsEl.classList.remove('hidden');
-      document.getElementById('skip-cap-current').textContent = Math.round(finalCap).toLocaleString() + '円';
-      const dEl = document.getElementById('skip-cap-delta');
-      dEl.textContent = (delta >= 0 ? '+' : '') + Math.round(delta).toLocaleString() + '円';
-      dEl.className = 'text-sm font-bold ' + (delta >= 0 ? 'text-emerald-600' : 'text-red-500');
-      const rEl = document.getElementById('skip-cap-rate');
-      rEl.textContent = (delta >= 0 ? '+' : '') + deltaRate + '%';
-      rEl.className = 'text-sm font-bold ' + (delta >= 0 ? 'text-emerald-600' : 'text-red-500');
-    }
-
-    if (chartSkipCapital) { chartSkipCapital.destroy(); chartSkipCapital = null; }
-    const ctx = document.getElementById('chart-skip-capital').getContext('2d');
-    chartSkipCapital = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{ data, borderColor: color, backgroundColor: color + '18',
-          borderWidth: 2, tension: 0.4, fill: true,
-          pointRadius: data.length <= 20 ? 3 : 0, pointBackgroundColor: color }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false },
-          y: { ticks: { color: '#94a3b8', font: { size: 10 },
-            callback: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? Math.round(v/1000)+'k' : v },
-            grid: { color: '#f1f5f9' } }
-        }
-      }
-    });
-  }
 
   // ============================================================
   // MA CONVERGENCE DURATION STATS
