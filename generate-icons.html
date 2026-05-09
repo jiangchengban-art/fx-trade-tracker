@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Generator</title></head>
+<body>
+<p>このページでアイコンを生成します。各ボタンを押してダウンロードしてください。</p>
+<button onclick="generate(192)">icon-192.png を生成</button>
+<button onclick="generate(512)">icon-512.png を生成</button>
+
+<canvas id="c" style="display:none"></canvas>
+
+<script>
+function generate(size) {
+  const canvas = document.getElementById('c');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const r = size * 0.15;
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#3B82F6');
+  grad.addColorStop(1, '#1D4ED8');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, r);
+  ctx.fill();
+
+  // Text "FX"
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `bold ${size * 0.38}px Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FX', size / 2, size * 0.45);
+
+  // Sub-line
+  ctx.font = `${size * 0.12}px Arial, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('記録', size / 2, size * 0.72);
+
+  const a = document.createElement('a');
+  a.download = `icon-${size}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+</script>
+</body>
+</html>
