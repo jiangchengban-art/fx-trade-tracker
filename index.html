@@ -38,6 +38,8 @@
     ::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
 
     /* Tooltip */
+    details[open] .details-chevron { transform: rotate(180deg); }
+    .details-chevron { transition: transform 0.2s; }
     .tax-tip {
       display: inline-flex; align-items: center; justify-content: center;
       width: 14px; height: 14px; border-radius: 50%;
@@ -946,7 +948,10 @@
         </div>
 
 
-        <h4 class="text-xs font-bold text-slate-500 mb-2 mt-4 uppercase tracking-wide">スルー理由別成績</h4>
+        <div class="flex items-baseline gap-2 mb-2 mt-4">
+          <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wide">スルー理由別成績</h4>
+          <span class="text-[9px]" style="color:#475569">記録日時順で計算</span>
+        </div>
         <div id="skip-by-reason"></div>
       </div>
 
@@ -1006,7 +1011,7 @@
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background:#ef4444"></span>エントリー負け</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background:#94a3b8"></span>建値/引き分け</span>
           <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background:#f59e0b"></span>スルー</span>
-          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background:#fb923c"></span>ミス</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm inline-block" style="background:#a855f7"></span>ミス</span>
         </div>
         <div id="calendar-grid" class="grid grid-cols-7 gap-0.5 text-center"></div>
 
@@ -1147,51 +1152,59 @@
         </div>
 
         <!-- オプション設定 -->
-        <div class="space-y-2 mb-4 p-3 bg-slate-50 rounded-xl">
-          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">控除オプション</p>
+        <details class="mb-4 rounded-xl overflow-hidden" style="border:1px solid #e2e8f0">
+          <summary class="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none list-none" style="background:#f8fafc">
+            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">控除オプション</span>
+            <svg class="w-3.5 h-3.5 text-slate-400 transition-transform details-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </summary>
+          <div class="space-y-2 p-3" style="background:#f8fafc;border-top:1px solid #e2e8f0">
 
-          <!-- 基礎控除 -->
-          <div>
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="tax-apply-basic" checked onchange="renderTaxSim()"
-                class="w-4 h-4 rounded accent-blue-500">
-              <span class="text-xs font-semibold text-slate-600 flex-1">基礎控除（48万円）</span>
-              <span id="tax-basic-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0">−480,000円</span>
-            </label>
-            <div id="tax-other-income-block" class="mt-2 pl-6">
-              <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">その他の雑所得（円）</label>
-              <input type="number" id="tax-other-income" placeholder="0" min="0" step="10000"
-                oninput="renderTaxSim()"
-                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+            <!-- 基礎控除 -->
+            <div>
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="tax-apply-basic" checked onchange="renderTaxSim()"
+                  class="w-4 h-4 rounded accent-blue-500">
+                <span class="text-xs font-semibold text-slate-600 flex-1">基礎控除（48万円）</span>
+                <span id="tax-basic-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0">−480,000円</span>
+              </label>
+              <div id="tax-other-income-block" class="mt-2 pl-6">
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">その他の雑所得（円）</label>
+                <input type="number" id="tax-other-income" placeholder="0" min="0" step="10000"
+                  oninput="renderTaxSim()"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+              </div>
             </div>
-          </div>
 
-          <!-- 給与所得控除 -->
-          <div id="tax-salary-deduction-block" class="hidden">
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="tax-apply-salary-deduction" checked onchange="renderTaxSim()"
-                class="w-4 h-4 rounded accent-blue-500">
-              <span class="text-xs font-semibold text-slate-600 flex-1">給与所得控除</span>
-              <span id="tax-salary-ded-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dbeafe;color:#2563eb;border:1px solid #bfdbfe">−</span>
-            </label>
-          </div>
-
-          <!-- 住民税均等割 -->
-          <div>
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="tax-apply-resident-flat" checked onchange="renderTaxSim()"
-                class="w-4 h-4 rounded accent-blue-500">
-              <span class="text-xs font-semibold text-slate-600 flex-1">住民税 均等割</span>
-              <span id="tax-resident-flat-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca">+5,000円</span>
-            </label>
-            <div id="tax-resident-flat-block" class="mt-2 pl-6">
-              <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">金額（円）</label>
-              <input type="number" id="tax-resident-flat" value="5000" min="0" step="100"
-                oninput="renderTaxSim()"
-                class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+            <!-- 給与所得控除 -->
+            <div id="tax-salary-deduction-block" class="hidden">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="tax-apply-salary-deduction" checked onchange="renderTaxSim()"
+                  class="w-4 h-4 rounded accent-blue-500">
+                <span class="text-xs font-semibold text-slate-600 flex-1">給与所得控除</span>
+                <span id="tax-salary-ded-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#dbeafe;color:#2563eb;border:1px solid #bfdbfe">−</span>
+              </label>
             </div>
+
+            <!-- 住民税均等割 -->
+            <div>
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="tax-apply-resident-flat" checked onchange="renderTaxSim()"
+                  class="w-4 h-4 rounded accent-blue-500">
+                <span class="text-xs font-semibold text-slate-600 flex-1">住民税 均等割</span>
+                <span id="tax-resident-flat-badge" class="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca">+5,000円</span>
+              </label>
+              <div id="tax-resident-flat-block" class="mt-2 pl-6">
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">金額（円）</label>
+                <input type="number" id="tax-resident-flat" value="5000" min="0" step="100"
+                  oninput="renderTaxSim()"
+                  class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 select-text">
+              </div>
+            </div>
+
           </div>
-        </div>
+        </details>
 
         <!-- 結果表示 -->
         <div id="tax-result-area" class="hidden space-y-3">
@@ -2992,48 +3005,6 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         }).filter(Boolean).join('')
       : '';
 
-    // ── グループ別 ──
-    const groups = [
-      { label: 'メイン通貨のみ', trades: trades.filter(t => !t.pairSub) },
-      { label: 'サブ通貨あり',   trades: trades.filter(t => !!t.pairSub) },
-      { label: 'H1足',           trades: trades.filter(t => t.timeframe === 'H1') },
-      { label: 'M15足',          trades: trades.filter(t => t.timeframe === 'M15') },
-    ].filter(g => g.trades.length > 0);
-
-    const groupRows = groups.map(g => {
-      const gTotal   = g.trades.length;
-      const gPct     = total > 0 ? Math.round(gTotal / total * 100) : 0;
-      const gEntries = g.trades.filter(t => t.status === 'entry');
-      const gWins    = gEntries.filter(t => t.pnl > 0).length;
-      const gWinrate = gEntries.length > 0 ? Math.round(gWins / gEntries.length * 100) : null;
-      const winColor = gWinrate !== null ? (gWinrate >= 50 ? '#34d399' : '#f87171') : '#94a3b8';
-
-      const statusChips = STATUS_DEF.map(s => {
-        const cnt = g.trades.filter(t => t.status === s.key).length;
-        if (cnt === 0) return '';
-        return `<span class="rounded px-1 py-0.5 text-[9px] font-bold" style="background:${s.color}20;color:${s.color}">${s.label} ${cnt}</span>`;
-      }).filter(Boolean).join('');
-
-      return `
-      <div class="flex items-center gap-2 py-2" style="border-top:1px solid #1e293b">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-1.5 mb-1">
-            <span class="text-[11px] font-bold" style="color:#94a3b8">${g.label}</span>
-            <span class="text-xs font-black" style="color:#cbd5e1">${gTotal}回</span>
-            <span class="text-[10px]" style="color:#475569">(${gPct}%)</span>
-          </div>
-          <div class="flex gap-1 flex-wrap">${statusChips}</div>
-        </div>
-        ${gWinrate !== null
-          ? `<div class="flex-shrink-0 rounded-xl px-3 py-1.5 text-center" style="background:${winColor}15;border:1px solid ${winColor}30">
-               <div class="text-[9px]" style="color:#94a3b8">勝率</div>
-               <div class="text-base font-black leading-none mt-0.5" style="color:${winColor}">${gWinrate}<span class="text-[10px]">%</span></div>
-               <div class="text-[9px] mt-0.5" style="color:#475569">${gEntries.length}回</div>
-             </div>`
-          : ''}
-      </div>`;
-    }).join('');
-
     el.innerHTML = `
       <!-- 合計 + 比率バー -->
       <div class="mb-3">
@@ -3054,9 +3025,6 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         </div>
         <div class="grid gap-1.5" style="grid-template-columns:repeat(6,1fr)">${resultTiles}</div>
       </div>` : ''}
-
-      <!-- グループ別 -->
-      ${groupRows ? `<div>${groupRows}</div>` : ''}
     `;
   }
 
@@ -3287,6 +3255,27 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     const segs = order.filter(r => groups[r.key].length > 0);
     if (segs.length === 0) { el.innerHTML = '<p class="text-slate-400 text-sm">データがありません</p>'; return; }
 
+    const RESULT_SQUARES = [
+      { key: 'max',       label: 'MAX', color: '#8b5cf6' },
+      { key: 'big',       label: 'BIG', color: '#3b82f6' },
+      { key: 'reg',       label: 'REG', color: '#10b981' },
+      { key: 'small',     label: '微益', color: '#14b8a6' },
+      { key: 'breakeven', label: '建値', color: '#64748b' },
+      { key: 'stoploss',  label: '損切', color: '#ef4444' },
+    ];
+    const resultSquaresHtml = trades => {
+      const chips = RESULT_SQUARES.map(rs => {
+        const cnt = trades.filter(t => t.result === rs.key).length;
+        if (cnt === 0) return '';
+        return `<span style="display:inline-flex;align-items:center;gap:2px;background:${rs.color}22;border:1px solid ${rs.color}55;border-radius:3px;padding:1px 4px">
+          <span style="width:7px;height:7px;border-radius:1px;background:${rs.color};display:inline-block;flex-shrink:0"></span>
+          <span style="font-size:9px;font-weight:700;color:${rs.color};line-height:1">${rs.label}</span>
+          <span style="font-size:9px;color:#94a3b8;line-height:1">${cnt}</span>
+        </span>`;
+      }).filter(Boolean).join('');
+      return chips ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px">${chips}</div>` : '';
+    };
+
     el.innerHTML = segs.map(r => {
       const trades = groups[r.key];
       // リスク額が入力されていればシム計算、なければ件数と結果割合のみ
@@ -3296,6 +3285,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
           return `<div class="py-2.5 border-b border-slate-50 last:border-0">
             <span class="text-xs font-semibold" style="color:${r.color}">${r.label}</span>
             <span class="text-xs ml-2" style="color:#475569">${trades.length}回（結果未入力）</span>
+            ${resultSquaresHtml(trades)}
           </div>`;
         }
         const deltaColor = s.delta >= 0 ? '#10b981' : '#ef4444';
@@ -3319,6 +3309,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
             <div>増減率 <span style="color:${deltaColor};font-weight:600">${growthSign}${s.growthPct}%</span></div>
             <div>連勝 <span class="text-emerald-400">${s.maxStreak}</span> / 連敗 <span class="text-red-400">${s.maxLoseStreak}</span></div>
           </div>
+          ${resultSquaresHtml(trades)}
         </div>`;
       } else {
         // リスク額なし → 件数と結果分布だけ表示
@@ -3331,6 +3322,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
             <span class="text-xs font-semibold" style="color:${r.color}">${r.label}</span>
             <span class="text-xs font-bold" style="color:#cbd5e1">${trades.length}回${winrate !== null ? ' / 勝率' + winrate + '%' : ''}</span>
           </div>
+          ${resultSquaresHtml(trades)}
           <p class="text-[10px] mt-1" style="color:#475569">← リスク額を入力すると金額を表示</p>
         </div>`;
       }
@@ -3414,7 +3406,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
       // Build indicator dots — max 3 shown
       const dotColor = t => {
         if (t.status === 'through') return '#f59e0b';
-        if (t.status === 'miss')    return '#fb923c';
+        if (t.status === 'miss')    return '#a855f7';
         if (t.pnl > 0)  return '#10b981';
         if (t.pnl < 0)  return '#ef4444';
         return '#94a3b8';
