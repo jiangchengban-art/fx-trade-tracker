@@ -3918,8 +3918,9 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     container.innerHTML = [0,1,2].map(i => {
       const m = memos[i] || {};
       const col = SLOT_COLORS[i];
-      const isAccordion = i > 0;          // slot 1,2 are collapsible
-      const collapsed   = isAccordion;    // start collapsed
+      const isAccordion = true;
+      const hasContent  = !!(m.pair || m.method || m.timeframe || m.reason);
+      const collapsed   = !hasContent;    // 入力あり→開く、なし→閉じる
 
       const pairOpts = CHANCE_PAIRS.map(p =>
         `<option value="${p}" ${m.pair === p ? 'selected':''}>${p || '-- なし --'}</option>`
@@ -3936,10 +3937,9 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
         `<option value="M15" ${m.timeframe==='M15'?'selected':''}>M15</option>`,
       ].join('');
 
-      const headerClick = isAccordion ? `onclick="toggleChanceSlot(${i})" style="cursor:pointer"` : '';
-      const arrow = isAccordion
-        ? `<svg id="cm-arrow-${i}" class="w-3 h-3 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:${col}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>`
-        : '';
+      const headerClick = `onclick="toggleChanceSlot(${i})" style="cursor:pointer"`;
+      const arrowRot = collapsed ? 'rotate(0deg)' : 'rotate(90deg)';
+      const arrow = `<svg id="cm-arrow-${i}" class="w-3 h-3 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:${col};transform:${arrowRot}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>`;
 
       const content = `
         <div class="grid grid-cols-3 gap-2 mb-2">
