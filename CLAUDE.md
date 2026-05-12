@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v13）
+├── sw.js                   Service Worker（オフライン対応・現在 v16）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -62,7 +62,9 @@
 - 入金/出金を分割表示（pnl > 0 vs < 0）
 - 総資金 = エントリー損益 + 入金計 + 出金計
 - 資本推移チャート: 💰(入金)・💸(出金)・#(エントリー)で表示（`renderCapitalChart`）
-- 成績内訳: MA収束〜拡散期間のみ表示（`renderMaConvStats`）
+- 成績内訳: 表示順に「平均エントリー保有時間」→「MA収束〜拡散期間」
+  - `renderEntryDurationStats`: entry + 両日時あり のデータで保有時間集計。グラフ刻み＝日単位（〜1日/〜2日/〜3日/〜5日/5日+）
+  - `renderMaConvStats`: maConvDuration フィールドで集計
 
 ### ★ カレンダー（renderCalendar）
 - ドット色: 勝ち=緑 `#10b981`、負け=赤 `#ef4444`、建値=グレー `#94a3b8`
@@ -74,9 +76,11 @@
 - 基礎控除・給与所得控除・住民税均等割をチェックボックスで個別ON/OFF
 
 ### ★ エントリーチャンスメモ（initChanceMemos / saveChanceMemos）
-- `localStorage['fx_chance_memo']` に保存
+- `localStorage['fx_chance_memo']` に保存（pair/method/timeframe/reason/**updatedAt**）
 - `pagehide` + `visibilitychange` で iOS 離脱時も確実保存
 - `saveChanceMemos()` は要素不在時（summary タブ外）に空上書きしないガード付き
+- **updatedAt**: pair/method/timeframe/reason に変更があったときのみ更新（ページ開閉では更新しない）
+- ヘッダーに最終更新日時を表示（`fmtDate(m.updatedAt)` で日付+時間）
 
 ## 🔐 Supabase 連携
 
@@ -127,6 +131,11 @@ CREATE TABLE fx_trades (
 - [x] エントリーチャンス集計グループ別分類削除（スルー理由別と重複のため）✅ 2026-05-10
 - [x] スルー理由別成績に結果種類チップ（MAX/BIG/REG等）を可視化 ✅ 2026-05-10
 - [x] 控除オプションをアコーディオン形式に変更 ✅ 2026-05-10
+- [x] Supabase複数デバイス競合バグ修正（pull-first化）✅ 2026-05-12
+- [x] 履歴カードにMA収束時間表示 ✅ 2026-05-12
+- [x] 統計タブに平均エントリー保有時間セクション追加 ✅ 2026-05-12
+- [x] 履歴カードのエグジット日付・経過時間を「日+時間」表記に修正 ✅ 2026-05-12
+- [x] チャンスメモに最終更新日時を記録・表示 ✅ 2026-05-12
 - [ ] タックス計算タブ（本格的な確定申告シミュレーター）
 - [ ] ゴミ箱UI（削除済みトレードの復元機能）
 - [ ] デバイス間データ競合の高度な検出
@@ -146,4 +155,4 @@ CREATE TABLE fx_trades (
 
 ---
 
-**最終更新**: 2026-05-12 — Supabase複数デバイス競合バグ修正（pull-first化・v13）
+**最終更新**: 2026-05-12 — 履歴カードMA収束表示・平均エントリー保有時間・チャンスメモ日時記録（v16）

@@ -978,6 +978,12 @@
         </div>
       </div>
 
+      <!-- 平均エントリー保有時間 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
+        <h3 class="text-sm font-bold text-slate-600 mb-3">⏱ 平均エントリー保有時間</h3>
+        <div id="entry-duration-stats"></div>
+      </div>
+
       <!-- MA収束〜拡散期間 -->
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
         <h3 class="text-sm font-bold text-slate-600 mb-3">📐 MA収束〜拡散期間</h3>
@@ -2042,11 +2048,18 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     // Elapsed time
     let timeStr = fmtDate(t.datetimeEntry || t.datetime);
     if (t.datetimeExit) {
-      const diffMin = Math.round((new Date(t.datetimeExit) - new Date(t.datetimeEntry || t.datetime)) / 60000);
-      const elapsedStr = diffMin >= 60
-        ? Math.floor(diffMin / 60) + '時間' + (diffMin % 60 > 0 ? (diffMin % 60) + '分' : '')
-        : diffMin + '分';
-      timeStr += ' → ' + fmtTime(t.datetimeExit) + ' <span style="color:#60a5fa">(' + elapsedStr + ')</span>';
+      const entryDt = new Date(t.datetimeEntry || t.datetime);
+      const exitDt  = new Date(t.datetimeExit);
+      const diffMin = Math.round((exitDt - entryDt) / 60000);
+      const days = Math.floor(diffMin / 1440);
+      const remH = Math.floor((diffMin % 1440) / 60);
+      const remM = diffMin % 60;
+      let elapsedStr = '';
+      if (days > 0) elapsedStr += days + '日';
+      if (remH > 0) elapsedStr += remH + '時間';
+      if (days === 0 && remM > 0) elapsedStr += remM + '分';
+      const exitDateStr = fmtDate(t.datetimeExit);
+      timeStr += ' →<br>' + exitDateStr + ' <span style="color:#60a5fa">(' + elapsedStr + ')</span>';
     }
 
     // Chart images (new slot format or backward-compat array)
@@ -2093,6 +2106,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
           <div class="text-xs font-semibold" style="color:#94a3b8">${methodLabel(t.method)}</div>
           ${t.reason ? `<div class="text-xs text-slate-400 mt-0.5 line-clamp-1">${esc(t.reason)}</div>` : ''}
           <div class="text-[10px] text-slate-400 mt-1">${timeStr}</div>
+          ${t.maConvDuration ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">MA収束: </span><span style="color:#34d399;font-weight:600">${t.maConvDuration}h</span></div>` : ''}
           ${tagHtml}
         </div>
       </div>
@@ -2706,6 +2720,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     renderBreakdowns(trades);
     renderOpportunityStats(trades);
     renderSkipAnalysis(trades);
+    renderEntryDurationStats(trades);
     renderMaConvStats(trades);
     renderCapitalChart();
     renderChanceRate();
@@ -3851,12 +3866,20 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
 
   function saveChanceMemos() {
     if (!document.getElementById('cm-pair-0')) return;
-    const data = [0,1,2].map(i => ({
-      pair:      document.getElementById(`cm-pair-${i}`)?.value || '',
-      method:    document.getElementById(`cm-method-${i}`)?.value || '',
-      timeframe: document.getElementById(`cm-tf-${i}`)?.value || '',
-      reason:    document.getElementById(`cm-reason-${i}`)?.value || '',
-    }));
+    const existing = loadChanceMemos();
+    const data = [0,1,2].map(i => {
+      const prev = existing[i] || {};
+      const pair      = document.getElementById(`cm-pair-${i}`)?.value || '';
+      const method    = document.getElementById(`cm-method-${i}`)?.value || '';
+      const timeframe = document.getElementById(`cm-tf-${i}`)?.value || '';
+      const reason    = document.getElementById(`cm-reason-${i}`)?.value || '';
+      const changed   = pair !== prev.pair || method !== prev.method ||
+                        timeframe !== prev.timeframe || reason !== prev.reason;
+      return {
+        pair, method, timeframe, reason,
+        updatedAt: changed ? new Date().toISOString() : (prev.updatedAt || null),
+      };
+    });
     localStorage.setItem(CHANCE_MEMO_KEY, JSON.stringify(data));
   }
 
@@ -3950,6 +3973,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
             style="background:${col};color:#fff">${i+1}</span>
           <span class="text-xs font-semibold flex-1" style="color:${col}">チャンス ${i+1}</span>
           ${m.pair ? `<span class="text-xs font-bold" style="color:#94a3b8">${m.pair}</span>` : ''}
+          ${m.updatedAt ? `<span class="text-[9px] flex-shrink-0" style="color:#475569">${fmtDate(m.updatedAt)}</span>` : ''}
           <button type="button" onclick="event.stopPropagation();clearChanceMemo(${i})"
             class="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0"
             style="background:#1e293b;color:#64748b;border:1px solid #334155;line-height:1.2">クリア</button>
@@ -5047,6 +5071,82 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
 
   // ============================================================
   // SKIP CAPITAL SIMULATION CHART
+
+  // ============================================================
+  // ENTRY HOLDING DURATION STATS
+  // ============================================================
+  function renderEntryDurationStats(trades) {
+    const el = document.getElementById('entry-duration-stats');
+    if (!el) return;
+    const vals = trades
+      .filter(t => t.status === 'entry' && t.datetimeEntry && t.datetimeExit)
+      .map(t => (new Date(t.datetimeExit) - new Date(t.datetimeEntry)) / 3600000)
+      .filter(v => v > 0);
+    if (vals.length === 0) {
+      el.innerHTML = '<p class="text-slate-300 text-sm text-center py-4">データがありません</p>';
+      return;
+    }
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const mn  = Math.min(...vals);
+    const mx  = Math.max(...vals);
+    const med = [...vals].sort((a, b) => a - b)[Math.floor(vals.length / 2)];
+
+    function fmtH(h) {
+      const d = Math.floor(h / 24);
+      const hh = Math.floor(h % 24);
+      const mm = Math.round((h - Math.floor(h)) * 60);
+      let s = '';
+      if (d > 0) s += d + '日';
+      if (hh > 0) s += hh + '時間';
+      if (d === 0 && hh === 0 && mm > 0) s += mm + '分';
+      return s || '0分';
+    }
+
+    const buckets = [
+      { label: '〜1日', min: 0,   max: 24  },
+      { label: '〜2日', min: 24,  max: 48  },
+      { label: '〜3日', min: 48,  max: 72  },
+      { label: '〜5日', min: 72,  max: 120 },
+      { label: '5日+',  min: 120, max: Infinity },
+    ];
+    const counts = buckets.map((b, i) => vals.filter(v => i === 0 ? v <= b.max : v > b.min && v <= b.max).length);
+    const maxCount = Math.max(...counts, 1);
+
+    const bars = buckets.map((b, i) => {
+      const pct = Math.round((counts[i] / maxCount) * 100);
+      const isAvgBucket = i === 0 ? avg <= b.max : avg > b.min && avg <= b.max;
+      return `
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] text-slate-400 w-16 text-right flex-shrink-0">${b.label}</span>
+        <div class="flex-1 h-4 rounded-sm overflow-hidden" style="background:#f1f5f9">
+          <div class="h-full rounded-sm transition-all" style="width:${pct}%;background:${isAvgBucket ? '#60a5fa' : '#cbd5e1'}"></div>
+        </div>
+        <span class="text-[10px] w-6 text-right flex-shrink-0" style="color:${isAvgBucket ? '#60a5fa' : '#94a3b8'}">${counts[i]}</span>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="flex items-end gap-4 mb-4">
+        <div class="text-center flex-1">
+          <div class="text-3xl font-black" style="color:#60a5fa">${fmtH(avg)}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">平均</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="text-xl font-bold text-slate-600">${fmtH(med)}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">中央値</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="text-sm font-bold text-slate-500">${fmtH(mn)}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">最短</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="text-sm font-bold text-slate-500">${fmtH(mx)}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">最長</div>
+        </div>
+      </div>
+      <div class="text-[10px] text-slate-400 mb-2 text-right">${vals.length}件のデータ　青＝平均を含む範囲</div>
+      <div class="space-y-1">${bars}</div>`;
+  }
 
   // ============================================================
   // MA CONVERGENCE DURATION STATS
