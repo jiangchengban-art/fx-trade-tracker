@@ -2949,6 +2949,8 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   function renderOpportunityStats(trades) {
     const el = document.getElementById('opportunity-stats');
     if (!el) return;
+    // 入出金を除外
+    trades = trades.filter(t => !isDepositStatus(t.status));
     if (trades.length === 0) {
       el.innerHTML = '<p style="color:#475569;font-size:12px">データがありません</p>';
       return;
@@ -3863,6 +3865,13 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     initChanceMemos();
   }
 
+  function clearChanceMemo(i) {
+    const memos = loadChanceMemos();
+    memos[i] = {};
+    localStorage.setItem(CHANCE_MEMO_KEY, JSON.stringify(memos));
+    initChanceMemos(true);
+  }
+
   function toggleChanceSlot(i) {
     const el = document.getElementById(`cm-content-${i}`);
     const arrow = document.getElementById(`cm-arrow-${i}`);
@@ -3871,10 +3880,10 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     if (arrow) arrow.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(90deg)';
   }
 
-  function initChanceMemos() {
+  function initChanceMemos(skipSave) {
     const container = document.getElementById('chance-memo-slots');
     if (!container) return;
-    saveChanceMemos();
+    if (!skipSave) saveChanceMemos();
     const memos = loadChanceMemos();
     const SLOT_COLORS = ['#818cf8','#34d399','#fb923c'];
 
@@ -3941,6 +3950,9 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
             style="background:${col};color:#fff">${i+1}</span>
           <span class="text-xs font-semibold flex-1" style="color:${col}">チャンス ${i+1}</span>
           ${m.pair ? `<span class="text-xs font-bold" style="color:#94a3b8">${m.pair}</span>` : ''}
+          <button type="button" onclick="event.stopPropagation();clearChanceMemo(${i})"
+            class="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0"
+            style="background:#1e293b;color:#64748b;border:1px solid #334155;line-height:1.2">クリア</button>
           ${arrow}
         </div>
         <div id="cm-content-${i}" class="px-3 pb-3 ${collapsed ? 'hidden' : ''}">
@@ -4635,20 +4647,20 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     try {
       const local = dbLoadRaw();  // tombstones を含む全件
 
-      // 1. Push local → Supabase (upsert by id) ※削除マークも送信される
-      if (local.length > 0) {
-        const rows = local.map(t => ({ id: t.id, data: t, synced_at: new Date().toISOString() }));
+      // 1. Pull all from Supabase first (pull-first to receive remote tombstones before pushing)
+      const remote = await sbFetch(cfg, 'fx_trades?select=data&order=synced_at.desc');
+      const remoteTrades = (remote || []).map(r => r.data).filter(Boolean);
+
+      // 2. Merge — tombstone優先・新しい updatedAt 優先
+      const merged = mergeTrades(local, remoteTrades);
+
+      // 3. Push merged result → Supabase (tombstones included)
+      if (merged.length > 0) {
+        const rows = merged.map(t => ({ id: t.id, data: t, synced_at: new Date().toISOString() }));
         for (let i = 0; i < rows.length; i += 500) {
           await sbFetch(cfg, 'fx_trades?on_conflict=id', 'POST', rows.slice(i, i + 500));
         }
       }
-
-      // 2. Pull all from Supabase
-      const remote = await sbFetch(cfg, 'fx_trades?select=data&order=synced_at.desc');
-      const remoteTrades = (remote || []).map(r => r.data).filter(Boolean);
-
-      // 3. Merge — tombstone優先・新しい updatedAt 優先
-      const merged = mergeTrades(local, remoteTrades);
 
       dbSave(merged);
       const ts = new Date().toISOString();

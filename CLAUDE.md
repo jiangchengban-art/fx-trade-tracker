@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v11）
+├── sw.js                   Service Worker（オフライン対応・現在 v13）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -34,7 +34,9 @@
 - Trade-only 項目の削除・クリア処理
 
 ### ★ 同期（syncWithSupabase / mergeTrades）
-- `dbLoadRaw()` で墓標含むすべてを push
+- **フロー**: pull-first（クラウドから全件取得） → merge → push
+  - 変更前の問題: push-first により古いローカルが先にクラウド汚染 → 削除マークが復活
+  - 現在: pull → merge（deleted:true優先） → push で複数デバイス競合を解決
 - `pickWinning()` で競合解決（deleted:true 優先）
 
 ### ★ シミュレーション（renderSkipTradeSim / renderSimulation）
@@ -135,6 +137,13 @@ CREATE TABLE fx_trades (
 - **オフライン状態**: Service Worker で読み取り可能だが、新規記録は sync 時まで保存されない
 - **スルー理由別 vs まとめタブシミュの数値不一致**: 前者は記録日時順・後者は手動シナリオのため同じ組み合わせでも結果が異なる（設計上の意図的な差異）
 
+## ✅ 解決済みの問題
+
+- **複数デバイス間の削除マーク復活** ✅ 2026-05-12
+  - **原因**: push-first で古いローカルがクラウド汚染
+  - **対策**: pull-first（pull → merge → push）で墓標の正確な伝播を保証
+  - **効果**: PC + iPhone 並行アクセスでも削除状態が正確に同期される
+
 ---
 
-**最終更新**: 2026-05-10 — カレンダー色分け・グループ別削除・結果チップ・アコーディオン控除
+**最終更新**: 2026-05-12 — Supabase複数デバイス競合バグ修正（pull-first化・v13）
