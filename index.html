@@ -1272,74 +1272,6 @@
         </div>
       </div>
 
-      <!-- Cloud Sync (Supabase) -->
-      <div class="rounded-2xl p-4 shadow-sm mb-4" style="background:#0f172a">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-bold" style="color:#7dd3fc">☁ クラウド同期（Supabase）</h3>
-          <span id="sync-status-badge" class="text-[10px] px-2 py-0.5 rounded-full font-semibold" style="background:#1e293b;color:#475569">未接続</span>
-        </div>
-
-        <!-- Config fields (collapsed when connected) -->
-        <div id="sync-config-block">
-          <div class="space-y-2 mb-3">
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wide mb-1" style="color:#475569">Supabase Project URL</label>
-              <input type="text" id="sb-url" placeholder="https://xxxx.supabase.co"
-                class="w-full rounded-lg px-3 py-2 text-xs focus:outline-none"
-                style="background:#1e293b;color:#cbd5e1;border:1px solid #334155">
-            </div>
-            <div>
-              <label class="block text-[10px] font-semibold uppercase tracking-wide mb-1" style="color:#475569">Anon Key</label>
-              <input type="password" id="sb-key" placeholder="eyJ..."
-                class="w-full rounded-lg px-3 py-2 text-xs focus:outline-none"
-                style="background:#1e293b;color:#cbd5e1;border:1px solid #334155">
-            </div>
-          </div>
-          <button onclick="saveSBConfig()"
-            class="w-full py-2 rounded-xl text-xs font-bold active:scale-95 transition-all"
-            style="background:#0ea5e9;color:#fff">接続して同期</button>
-          <!-- Setup guide -->
-          <details class="mt-3">
-            <summary class="text-[10px] cursor-pointer" style="color:#475569">初回セットアップ手順を見る ▸</summary>
-            <div class="mt-2 space-y-1 text-[10px] leading-relaxed" style="color:#475569">
-              <p>① <a href="https://supabase.com" target="_blank" style="color:#38bdf8">supabase.com</a> で無料アカウント作成</p>
-              <p>② 新しいプロジェクトを作成</p>
-              <p>③ SQL Editor で以下を実行:</p>
-              <pre class="rounded-lg p-2 mt-1 text-[10px] overflow-x-auto select-text" style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b">CREATE TABLE fx_trades (
-  id TEXT PRIMARY KEY,
-  data JSONB NOT NULL,
-  synced_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE fx_trades ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
-              <p>④ Settings → API から URL と anon key をコピー</p>
-            </div>
-          </details>
-        </div>
-
-        <!-- Connected state -->
-        <div id="sync-connected-block" class="hidden">
-          <div class="flex items-center gap-2 mb-3 p-2 rounded-xl" style="background:#1e293b">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:#34d399"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            <span class="text-xs flex-1 truncate" id="sb-connected-url" style="color:#64748b"></span>
-            <button onclick="disconnectSB()" class="text-[10px] px-2 py-0.5 rounded-lg" style="color:#f87171;border:1px solid #f8717140">切断</button>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="sync-btn" onclick="syncWithSupabase()"
-              class="py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all"
-              style="background:#0ea5e9;color:#fff">今すぐ同期</button>
-            <button onclick="pullFromSupabase()"
-              class="py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all"
-              style="background:#1e293b;color:#7dd3fc;border:1px solid #0ea5e920">クラウドから取得</button>
-          </div>
-          <button onclick="overwriteSupabase()"
-            class="w-full mt-2 py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all"
-            style="background:#1e293b;color:#fbbf24;border:1px solid #d9770640">
-            ローカルデータでクラウドを上書き
-          </button>
-          <div class="mt-2 text-[10px] text-center" style="color:#334155" id="sync-last-time"></div>
-        </div>
-      </div>
 
       <!-- Data management -->
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
@@ -1575,6 +1507,11 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
   // INIT
   // ============================================================
   document.addEventListener('DOMContentLoaded', () => {
+    // クラウド同期廃止・全トレードデータを削除
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('fx_sb_config');
+    localStorage.removeItem('fx_sb_last_sync');
+
     // Header date
     const now = new Date();
     document.getElementById('today-date').textContent =
@@ -1652,7 +1589,7 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'history') renderHistory();
     if (tab === 'stats')   { renderStats(); renderCalendar(); renderChanceRate(); }
-    if (tab === 'summary') { renderSummary(); initChanceMemos(); updateSyncUI(); renderTaxSim(); updateBackupReminder(); }
+    if (tab === 'summary') { renderSummary(); initChanceMemos(); renderTaxSim(); updateBackupReminder(); }
   }
 
   // ============================================================
@@ -4571,188 +4508,6 @@ CREATE POLICY "all" ON fx_trades FOR ALL USING (true);</pre>
     showToast('✓ CSVエクスポートしました');
   }
 
-  // ============================================================
-  // SUPABASE CLOUD SYNC
-  // ============================================================
-  const SB_CFG_KEY      = 'fx_sb_config';
-  const SB_SYNC_TS_KEY  = 'fx_sb_last_sync';
-
-  function getSBConfig() {
-    try { return JSON.parse(localStorage.getItem(SB_CFG_KEY)); } catch { return null; }
-  }
-
-  function updateSyncUI() {
-    const cfg  = getSBConfig();
-    const badge    = document.getElementById('sync-status-badge');
-    const cfgBlock = document.getElementById('sync-config-block');
-    const conBlock = document.getElementById('sync-connected-block');
-    const lastEl   = document.getElementById('sync-last-time');
-    const urlEl    = document.getElementById('sb-connected-url');
-
-    if (cfg) {
-      if (badge)    { badge.textContent = '接続済み'; badge.style.background = '#14532d'; badge.style.color = '#4ade80'; }
-      if (cfgBlock) cfgBlock.classList.add('hidden');
-      if (conBlock) conBlock.classList.remove('hidden');
-      if (urlEl)    urlEl.textContent = cfg.url.replace('https://','').split('.')[0] + '.supabase.co';
-      const ts = localStorage.getItem(SB_SYNC_TS_KEY);
-      if (lastEl && ts) {
-        const d = new Date(ts);
-        lastEl.textContent = '最終同期: ' + d.toLocaleDateString('ja-JP') + ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-      }
-    } else {
-      if (badge)    { badge.textContent = '未接続'; badge.style.background = '#1e293b'; badge.style.color = '#475569'; }
-      if (cfgBlock) cfgBlock.classList.remove('hidden');
-      if (conBlock) conBlock.classList.add('hidden');
-    }
-  }
-
-  function saveSBConfig() {
-    const url = document.getElementById('sb-url')?.value?.trim();
-    const key = document.getElementById('sb-key')?.value?.trim();
-    if (!url || !key) { showToast('⚠ URLとAnon Keyを入力してください'); return; }
-    const cfg = { url: url.replace(/\/$/, ''), key };
-    localStorage.setItem(SB_CFG_KEY, JSON.stringify(cfg));
-    updateSyncUI();
-    syncWithSupabase();
-  }
-
-  function disconnectSB() {
-    showConfirm('Supabase接続を解除しますか？\nローカルのデータは削除されません。', () => {
-      localStorage.removeItem(SB_CFG_KEY);
-      localStorage.removeItem(SB_SYNC_TS_KEY);
-      updateSyncUI();
-      showToast('接続を解除しました');
-    });
-  }
-
-  async function sbFetch(cfg, path, method = 'GET', body = null) {
-    const headers = {
-      'Content-Type': 'application/json',
-      'apikey': cfg.key,
-      'Authorization': 'Bearer ' + cfg.key,
-    };
-    if (method === 'POST') headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
-    if (method === 'DELETE') headers['Prefer'] = 'return=minimal';
-    const res = await fetch(cfg.url + '/rest/v1/' + path, {
-      method, headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(res.status + ': ' + msg.slice(0, 120));
-    }
-    if (res.status === 204 || res.status === 201) return [];
-    return res.json();
-  }
-
-  // Pick the "winning" trade between two versions of the same id
-  // Tombstone (deleted=true) always wins; otherwise newest updatedAt wins.
-  function pickWinning(a, b) {
-    if (a.deleted && !b.deleted) return a;
-    if (b.deleted && !a.deleted) return b;
-    const ta = new Date(a.updatedAt || a.deletedAt || a.createdAt || a.datetime || 0).getTime();
-    const tb = new Date(b.updatedAt || b.deletedAt || b.createdAt || b.datetime || 0).getTime();
-    return tb > ta ? b : a;
-  }
-  function mergeTrades(localArr, remoteArr) {
-    const map = {};
-    for (const t of [...localArr, ...remoteArr]) {
-      if (!t || !t.id) continue;
-      map[t.id] = map[t.id] ? pickWinning(map[t.id], t) : t;
-    }
-    return Object.values(map).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-  }
-
-  async function syncWithSupabase() {
-    const cfg = getSBConfig();
-    if (!cfg) { showToast('⚠ Supabase未接続です'); return; }
-    const btn = document.getElementById('sync-btn');
-    if (btn) { btn.textContent = '同期中...'; btn.disabled = true; }
-    try {
-      const local = dbLoadRaw();  // tombstones を含む全件
-
-      // 1. Pull all from Supabase first (pull-first to receive remote tombstones before pushing)
-      const remote = await sbFetch(cfg, 'fx_trades?select=data&order=synced_at.desc');
-      const remoteTrades = (remote || []).map(r => r.data).filter(Boolean);
-
-      // 2. Merge — tombstone優先・新しい updatedAt 優先
-      const merged = mergeTrades(local, remoteTrades);
-
-      // 3. Push merged result → Supabase (tombstones included)
-      if (merged.length > 0) {
-        const rows = merged.map(t => ({ id: t.id, data: t, synced_at: new Date().toISOString() }));
-        for (let i = 0; i < rows.length; i += 500) {
-          await sbFetch(cfg, 'fx_trades?on_conflict=id', 'POST', rows.slice(i, i + 500));
-        }
-      }
-
-      dbSave(merged);
-      const ts = new Date().toISOString();
-      localStorage.setItem(SB_SYNC_TS_KEY, ts);
-      updateSyncUI();
-      if (currentTab === 'history') renderHistory();
-      const activeCount = merged.filter(t => !t.deleted).length;
-      showToast('☁ 同期完了 ' + activeCount + '件');
-    } catch (err) {
-      showToast('⚠ 同期エラー: ' + err.message);
-      console.error(err);
-    }
-    if (btn) { btn.textContent = '今すぐ同期'; btn.disabled = false; }
-  }
-
-  async function pullFromSupabase() {
-    const cfg = getSBConfig();
-    if (!cfg) return;
-    try {
-      const remote = await sbFetch(cfg, 'fx_trades?select=data&order=synced_at.desc');
-      const remoteTrades = (remote || []).map(r => r.data).filter(Boolean);
-      if (!remoteTrades.length) { showToast('クラウドにデータがありません'); return; }
-      const remoteActive = remoteTrades.filter(t => !t.deleted).length;
-      showConfirm(
-        'クラウドから ' + remoteActive + '件を取得して\nローカルと統合しますか？',
-        () => {
-          const local = dbLoadRaw();
-          const merged = mergeTrades(local, remoteTrades);
-          dbSave(merged);
-          if (currentTab === 'history') renderHistory();
-          showToast('☁ ' + remoteActive + '件を取得しました');
-        }
-      );
-    } catch (err) {
-      showToast('⚠ 取得エラー: ' + err.message);
-    }
-  }
-
-  async function overwriteSupabase() {
-    const cfg = getSBConfig();
-    if (!cfg) { showToast('⚠ Supabase未接続です'); return; }
-    const local = dbLoadRaw().filter(t => !t.deleted);
-    showConfirm(
-      'クラウドのデータを全削除し\nローカルの ' + local.length + '件で上書きします。\nこの操作は取り消せません。',
-      async () => {
-        const btn = document.getElementById('sync-btn');
-        if (btn) { btn.textContent = '上書き中...'; btn.disabled = true; }
-        try {
-          // 1. Delete all records from Supabase
-          await sbFetch(cfg, 'fx_trades?id=neq.null', 'DELETE');
-          // 2. Push local data
-          if (local.length > 0) {
-            const rows = local.map(t => ({ id: t.id, data: t, synced_at: new Date().toISOString() }));
-            for (let i = 0; i < rows.length; i += 500) {
-              await sbFetch(cfg, 'fx_trades?on_conflict=id', 'POST', rows.slice(i, i + 500));
-            }
-          }
-          localStorage.setItem(SB_SYNC_TS_KEY, new Date().toISOString());
-          updateSyncUI();
-          showToast('✓ クラウドを ' + local.length + '件で上書きしました');
-        } catch (err) {
-          showToast('⚠ 上書きエラー: ' + err.message);
-          console.error(err);
-        }
-        if (btn) { btn.textContent = '今すぐ同期'; btn.disabled = false; }
-      }
-    );
-  }
 
   function confirmDeleteAll() {
     showConfirm('全データを削除しますか？\nこの操作は取り消せません。', () => {

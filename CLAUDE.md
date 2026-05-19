@@ -15,8 +15,8 @@
 
 ### 単一ファイル設計の利点と制約
 - ✅ **デプロイ**: HTML1ファイル、クライアント側のみで完結
-- ✅ **同期**: Supabase 自由度（ローカル ↔ クラウド）
-- ⚠️ **維持**: 5000行超なので変更時は細心の注意
+- ✅ **スタンドアロン**: ローカルストレージ自己完結（クラウド同期なし）
+- ⚠️ **維持**: 4000行超なので変更時は細心の注意
 
 ### コード変更時のチェックリスト
 - [ ] Node.js で JS 構文チェック: `node -e "new vm.Script(code)"`
@@ -33,11 +33,6 @@
 - Deposit 判定で分岐（`isDepositStatus()`）
 - Trade-only 項目の削除・クリア処理
 
-### ★ 同期（syncWithSupabase / mergeTrades）
-- **フロー**: pull-first（クラウドから全件取得） → merge → push
-  - 変更前の問題: push-first により古いローカルが先にクラウド汚染 → 削除マークが復活
-  - 現在: pull → merge（deleted:true優先） → push で複数デバイス競合を解決
-- `pickWinning()` で競合解決（deleted:true 優先）
 
 ### ★ シミュレーション（renderSkipTradeSim / renderSimulation）
 - リスク履歴スタック方式（共通ロジック）
@@ -82,21 +77,20 @@
 - **updatedAt**: pair/method/timeframe/reason に変更があったときのみ更新（ページ開閉では更新しない）
 - ヘッダーに最終更新日時を表示（`fmtDate(m.updatedAt)` で日付+時間）
 
-## 🔐 Supabase 連携
+## 💾 データ管理
 
-### テーブル
-```sql
-CREATE TABLE fx_trades (
-  id TEXT PRIMARY KEY,
-  data JSONB NOT NULL,
-  synced_at TIMESTAMP DEFAULT NOW()
-);
-```
+### ローカルストレージキー
+- `fx_trades_v1` — すべてのトレード記録（JSON配列）
+- `fx_active_tab` — 現在のアクティブタブ
+- `fx_onboarding_done` — オンボーディング済みフラグ
+- `fx_last_export_date` — 最後にエクスポートした日付
+- `fx_chance_memo` — エントリーチャンスメモ
+- `fx_banner_dismissed` — バナー非表示フラグ
 
-### 注意
-- upsert は `on_conflict=id` で既存行を新しい data で上書き
-- deleted:true も同じく upsert される（墓標伝播）
-- ローカル config（URL + Anon Key）は `localStorage['fx_sb_config']`
+### ローカルオンリー方針（2026-05-19以降）
+- Suabase同期機能は廃止
+- クラウド連携なし（ローカルストレージ完全自己完結）
+- マルチデバイス同期は未実装
 
 ## 🧪 テスト項目
 
@@ -108,8 +102,7 @@ CREATE TABLE fx_trades (
 
 ### ソフト削除
 1. トレード削除 → `deleted:true` 付与で非表示
-2. クラウド同期 → 他端末でも墓標伝播で削除状態が共有
-3. importData 後の merge が墓標を保持するか確認
+2. ローカル確認 → localStorage に `deleted:true` が正しく保存されているか確認
 
 ### シミュレーション（まとめタブのみ）
 - 初期10k → MAX×2 (30k→90k) → 損切 → 次リスク30k 確認
@@ -142,16 +135,15 @@ CREATE TABLE fx_trades (
 
 ## 💡 既知の制約
 
-- **削除の完全クリーンアップなし**: 墓標は永遠に残る（ただし表示されない）
-- **オフライン状態**: Service Worker で読み取り可能だが、新規記録は sync 時まで保存されない
+- **ローカルストレージのみ**: マルチデバイス同期なし（ローカル完全自己完結）
+- **削除の完全クリーンアップなし**: 墓標（`deleted:true`）は永遠に残る（ただし表示されない）
 - **スルー理由別 vs まとめタブシミュの数値不一致**: 前者は記録日時順・後者は手動シナリオのため同じ組み合わせでも結果が異なる（設計上の意図的な差異）
 
-## ✅ 解決済みの問題
+## 📋 廃止済みの機能
 
-- **複数デバイス間の削除マーク復活** ✅ 2026-05-12
-  - **原因**: push-first で古いローカルがクラウド汚染
-  - **対策**: pull-first（pull → merge → push）で墓標の正確な伝播を保証
-  - **効果**: PC + iPhone 並行アクセスでも削除状態が正確に同期される
+- **Suabase同期** ✅ 廃止 2026-05-19
+  - 原因：RLS設定とクラウド管理の複雑性
+  - 方針転換：ローカルストレージオンリーで単純化
 
 ---
 
@@ -161,19 +153,24 @@ CREATE TABLE fx_trades (
 - [x] Supabaseのデモ用トレード削除（8件削除、7件保持）✅ 2026-05-13
 - [x] Service Worker キャッシュ v16→v17 ✅ 2026-05-13
 
-## 🔧 2026-05-14 セッション状況
+## 🔧 2026-05-19 セッション：方向転換（Suabase廃止）
 
-**データ整理**
-- [x] Suabaseのデモ用トレード削除確定（5件に絞込）✅ 2026-05-14
-- [x] LocalStorage 完全リセット（Clear site data）✅ 2026-05-14
+**決定事項**
+- [x] Suabase同期機能を完全廃止 ✅ 2026-05-19
+- [x] クラウド連携UI全削除 ✅ 2026-05-19
+- [x] 全トレード履歴を新規クリア ✅ 2026-05-19
+- [x] ローカルストレージオンリー方針に切り替え ✅ 2026-05-19
 
-**問題診断**
-- [ ] GitHub Pages キャッシュ同期問題 → **未解決**（CDN キャッシュ戦略要検討）
-- [ ] Suabase ネットワークエラー（Failed to fetch） → **RLS 権限不足を疑う**（次セッションで確認）
+**削除内容**
+- syncWithSupabase / pullFromSupabase / overwriteSupabase
+- getSBConfig / updateSyncUI / sbFetch
+- mergeTrades / pickWinning
+- Cloud Sync HTMLセクション全削除
 
-**次セッションの対応予定**
-1. Suabase RLS ポリシー設定確認 → anon ロール用ポリシー追加
-2. 「今すぐ同期」でのネットワークエラー解消確認
-3. GitHub Pages キャッシュ問題の根本対策
+**次ステップ（TBD）**
+新しいデータ管理方針を決定する：
+- 選択肢1: 完全ローカル化（現状）
+- 選択肢2: 新しいマルチデバイス同期機構
+- 選択肢3: ユーザー主導のインポート/エクスポート体制
 
-**最終更新**: 2026-05-14 — Suabaseデモ削除完了・RLS診断中
+**最終更新**: 2026-05-19 — Suabase完全廃止・新方向検討中
