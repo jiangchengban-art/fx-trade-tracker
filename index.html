@@ -19,6 +19,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Firebase SDK (Realtime Database) -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-database-compat.js"></script>
 
   <style>
     /* Safe area for iPhone notch / home indicator */
@@ -1453,11 +1456,28 @@
   }
   // Active trades: tombstones (deleted=true) は除外
   function dbLoad() { return dbLoadRaw().filter(t => !t.deleted); }
+  // Firebase マージ: 最新の updatedAt を採用
+  function mergeTradesFB(local, remote) {
+    const map = new Map();
+    [...local, ...remote].forEach(t => {
+      const existing = map.get(t.id);
+      if (!existing) { map.set(t.id, t); return; }
+      const tNew = (t.updatedAt || t.createdAt || '') > (existing.updatedAt || existing.createdAt || '');
+      if (tNew) map.set(t.id, t);
+    });
+    return Array.from(map.values());
+  }
   function dbSave(trades) {
     const json = JSON.stringify(trades);
     localStorage.setItem(STORAGE_KEY, json);
     // Mirror to sessionStorage so data survives iOS localStorage eviction within session
     try { sessionStorage.setItem(BACKUP_KEY, json); } catch {}
+    // Firebase Realtime Database に全件書き込み
+    if (fbDb) {
+      const obj = {};
+      trades.forEach(t => { obj[t.id] = t; });
+      fbDb.ref('trades').set(obj).catch(e => console.warn('Firebase write error:', e));
+    }
   }
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1504,11 +1524,34 @@
   const _selectedIds = new Set();
 
   // ============================================================
+  // FIREBASE CONFIGURATION
+  // ============================================================
+  const FB_CONFIG = {
+    apiKey: "AIzaSyDz1uCcxIMcEOBe2QABj9cTCt-jwdaRJyI",
+    authDomain: "fx-trade-tracker-de055.firebaseapp.com",
+    databaseURL: "https://fx-trade-tracker-de055-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "fx-trade-tracker-de055",
+    storageBucket: "fx-trade-tracker-de055.firebasestorage.app",
+    messagingSenderId: "665876702131",
+    appId: "1:665876702131:web:1ba173294a6255ee8ce1c6",
+    measurementId: "G-56FTQ7PE6W"
+  };
+  let fbApp = null;
+  let fbDb = null;
+
+  // Initialize Firebase (fires immediately)
+  try {
+    fbApp = firebase.initializeApp(FB_CONFIG);
+    fbDb = firebase.database();
+  } catch (e) {
+    console.warn('Firebase init error:', e);
+  }
+
+  // ============================================================
   // INIT
   // ============================================================
   document.addEventListener('DOMContentLoaded', () => {
-    // クラウド同期廃止・全トレードデータを削除
-    localStorage.removeItem(STORAGE_KEY);
+    // Supabase 設定残骸を削除
     localStorage.removeItem('fx_sb_config');
     localStorage.removeItem('fx_sb_last_sync');
 
@@ -1560,6 +1603,21 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') saveChanceMemos();
     });
+
+    // Firebase Realtime Database リアルタイムリスナー
+    if (fbDb) {
+      fbDb.ref('trades').on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+        const remoteTrades = Object.values(data);
+        const localTrades  = dbLoadRaw();
+        const merged = mergeTradesFB(localTrades, remoteTrades);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        sessionStorage.setItem(BACKUP_KEY, JSON.stringify(merged));
+        renderHistory();
+        renderStats();
+      });
+    }
   });
 
   function setDefaultDatetime() {
