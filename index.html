@@ -1476,7 +1476,7 @@
     if (fbDb) {
       const obj = {};
       trades.forEach(t => { obj[t.id] = t; });
-      fbDb.ref('trades').set(obj).catch(e => console.warn('Firebase write error:', e));
+      fbDb.ref('trades').update(obj).catch(e => console.warn('Firebase write error:', e));
     }
   }
   // Console から実行可能: resetFirebaseToPC()
