@@ -1479,6 +1479,22 @@
       fbDb.ref('trades').set(obj).catch(e => console.warn('Firebase write error:', e));
     }
   }
+  // Console から実行可能: resetFirebaseToPC()
+  function resetFirebaseToPC() {
+    const trades = dbLoadRaw();
+    const obj = {};
+    trades.forEach(t => { obj[t.id] = t; });
+    if (fbDb) {
+      fbDb.ref('trades').set(obj)
+        .then(() => {
+          console.log('✅ Firebase を上書きしました（' + trades.length + '件）');
+          showToast('Firebase を同期しました');
+        })
+        .catch(e => console.error('❌ Firebase write error:', e));
+    } else {
+      console.warn('⚠️ Firebase が接続されていません');
+    }
+  }
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
