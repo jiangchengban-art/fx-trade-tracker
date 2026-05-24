@@ -1,5 +1,5 @@
 // FX Trade Tracker - Service Worker
-const CACHE_NAME = 'fx-trader-v18';
+const CACHE_NAME = 'fx-trader-v19';
 const STATIC_ASSETS = [
   './index.html',
   './manifest.json',

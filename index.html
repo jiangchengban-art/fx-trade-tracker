@@ -2099,7 +2099,6 @@
           ${skipBadge}
           ${mainPair ? `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">${esc(mainPair)}</span>` : ''}
           ${subPair  ? `<span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">${esc(subPair)}</span>` : ''}
-          ${t.timeframe ? `<span class="text-xs text-slate-400">${esc(t.timeframe)}</span>` : ''}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
           ${pnlVisible ? `<span class="text-sm font-bold mr-1 ${t.pnl > 0 ? 'text-emerald-500' : 'text-red-500'}">${pnlStr}</span>` : ''}
@@ -2114,7 +2113,7 @@
       </div>
       <div class="flex items-end justify-between gap-2">
         <div class="min-w-0 flex-1">
-          <div class="text-xs font-semibold" style="color:#94a3b8">${methodLabel(t.method)}</div>
+          <div class="text-xs font-semibold" style="color:#94a3b8">${[methodLabel(t.method), t.timeframe ? esc(t.timeframe) : ''].filter(Boolean).join(' · ')}</div>
           ${t.reason ? `<div class="text-xs text-slate-400 mt-0.5 line-clamp-1">${esc(t.reason)}</div>` : ''}
           <div class="text-[10px] text-slate-400 mt-1">${timeStr}</div>
           ${t.maConvDuration ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">MA収束: </span><span style="color:#34d399;font-weight:600">${t.maConvDuration}h</span></div>` : ''}
@@ -3435,6 +3434,7 @@
       const dotColor = t => {
         if (t.status === 'through') return '#f59e0b';
         if (t.status === 'miss')    return '#a855f7';
+        if (isDepositStatus(t.status)) return t.pnl >= 0 ? '#38bdf8' : '#f472b6';
         if (t.pnl > 0)  return '#10b981';
         if (t.pnl < 0)  return '#ef4444';
         return '#94a3b8';
@@ -4508,14 +4508,7 @@
     const lastDate = new Date(sorted[0].datetime);
     const diffDays = Math.floor((new Date() - lastDate) / 86400000);
 
-    if (diffDays >= 3) {
-      const el = document.getElementById('last-entry-banner');
-      const txt = document.getElementById('last-entry-banner-text');
-      if (el && txt) {
-        txt.textContent = `前回の記録から ${diffDays} 日が経過しています`;
-        el.classList.remove('hidden');
-      }
-    }
+    // last-entry banner disabled
   }
 
   function dismissLastEntryBanner() {
