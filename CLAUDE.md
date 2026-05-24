@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v18）
+├── sw.js                   Service Worker（オフライン対応・現在 v20）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -202,4 +202,22 @@
 - [ ] タックス計算タブ（本格的な確定申告シミュレーター）
 - [ ] ゴミ箱UI（削除済みトレードの復元機能）
 
-**最終更新**: 2026-05-23 — Firebase同期バグ修正・set→update変更・sw v18
+## 🔧 2026-05-24 セッション：iOS localStorage 消失バグ根本修正
+
+**実装内容**
+- [x] DOMContentLoaded で localStorage が削除されていた場合、sessionStorage から自動復旧 ✅
+- [x] pageshow イベントでも iOS Safari 復旧ロジック追加 ✅
+- [x] 新規トレード作成時に updatedAt を常に設定 ✅
+- [x] 古いレコード互換性処理：updatedAt がない場合は createdAt から補填 ✅
+- [x] Firebase マージロジックを安全化：常に merged を保存 ✅
+- [x] 履歴カード UI をコンパクト化（手法 · 時間足を1行に） ✅ 
+- [x] 「前回の記録から〜日」バナーを非表示化 ✅
+- [x] カレンダー入出金ドット色追加（水色 · ピンク） ✅
+- [x] Service Worker キャッシュ v19 → v20 ✅
+
+**根本原因の特定と対策**
+1. **iOS Safari の localStorage 削除**: 定期的にキャッシュクリア時に localStorage が消える
+2. **修正方針**: sessionStorage にバックアップを保存＆ DOMContentLoaded + pageshow で復旧
+3. **Firebase マージの安全性**: リモートデータが空でもローカルが保持される設計に
+
+**最終更新**: 2026-05-24 — iOS localStorage 消失バグ根本修正・UI コンパクト化・sw v20

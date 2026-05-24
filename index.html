@@ -1454,16 +1454,23 @@
       return [];
     } catch { return []; }
   }
+  // 古いレコードに updatedAt を補填（互換性）
+  function ensureUpdatedAt(trades) {
+    return trades.map(t => ({
+      ...t,
+      updatedAt: t.updatedAt || t.createdAt || new Date().toISOString()
+    }));
+  }
   // Active trades: tombstones (deleted=true) は除外
-  function dbLoad() { return dbLoadRaw().filter(t => !t.deleted); }
-  // Firebase マージ: 最新の updatedAt を採用
+  function dbLoad() { return ensureUpdatedAt(dbLoadRaw()).filter(t => !t.deleted); }
+  // Firebase マージ: 最新の updatedAt を採用（互換性処理済み）
   function mergeTradesFB(local, remote) {
+    const normalized = [...ensureUpdatedAt(local), ...ensureUpdatedAt(remote)];
     const map = new Map();
-    [...local, ...remote].forEach(t => {
+    normalized.forEach(t => {
       const existing = map.get(t.id);
       if (!existing) { map.set(t.id, t); return; }
-      const tNew = (t.updatedAt || t.createdAt || '') > (existing.updatedAt || existing.createdAt || '');
-      if (tNew) map.set(t.id, t);
+      if (t.updatedAt > existing.updatedAt) map.set(t.id, t);
     });
     return Array.from(map.values());
   }
@@ -1571,6 +1578,14 @@
     localStorage.removeItem('fx_sb_config');
     localStorage.removeItem('fx_sb_last_sync');
 
+    // iOS Safari localStorage 削除対策: sessionStorage から復旧
+    const localData = localStorage.getItem(STORAGE_KEY);
+    const backupData = sessionStorage.getItem(BACKUP_KEY);
+    if (!localData && backupData) {
+      localStorage.setItem(STORAGE_KEY, backupData);
+      console.log('✅ ローカルストレージを sessionStorage から復旧しました');
+    }
+
     // Header date
     const now = new Date();
     document.getElementById('today-date').textContent =
@@ -1620,18 +1635,33 @@
       if (document.visibilityState === 'hidden') saveChanceMemos();
     });
 
-    // Firebase Realtime Database リアルタイムリスナー
+    // iOS Safari: ページリロード時にも sessionStorage から復旧
+    window.addEventListener('pageshow', () => {
+      const localData = localStorage.getItem(STORAGE_KEY);
+      const backupData = sessionStorage.getItem(BACKUP_KEY);
+      if (!localData && backupData) {
+        localStorage.setItem(STORAGE_KEY, backupData);
+        renderHistory();
+        renderStats();
+        console.log('✅ [pageshow] ローカルストレージを sessionStorage から復旧しました');
+      }
+    });
+
+    // Firebase Realtime Database リアルタイムリスナー（セーフマージ版）
     if (fbDb) {
       fbDb.ref('trades').on('value', snapshot => {
         const data = snapshot.val();
-        if (!data) return;
-        const remoteTrades = Object.values(data);
+        const remoteTrades = data ? Object.values(data) : [];
         const localTrades  = dbLoadRaw();
         const merged = mergeTradesFB(localTrades, remoteTrades);
+        // マージ結果を常に保存（データ喪失を防止）
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         sessionStorage.setItem(BACKUP_KEY, JSON.stringify(merged));
-        renderHistory();
-        renderStats();
+        // 実際にデータが変わった時のみ render
+        if (merged.length !== localTrades.length || JSON.stringify(merged) !== JSON.stringify(localTrades)) {
+          renderHistory();
+          renderStats();
+        }
       });
     }
   });
@@ -1788,13 +1818,14 @@
 
     if (!status)  { showToast('⚠ ステータスを選択してください'); return; }
 
+    const now = new Date().toISOString();
     let trade;
     if (isDepositStatus(status)) {
       if (!pnl || pnl === 0) { showToast('⚠ 入金額を入力してください'); return; }
       trade = {
         id:            uid(),
-        datetime:      datetimeEntry || new Date().toISOString(),
-        datetimeEntry: datetimeEntry || new Date().toISOString(),
+        datetime:      datetimeEntry || now,
+        datetimeEntry: datetimeEntry || now,
         datetimeExit:  '',
         method:    '',
         pairMain:  '',
@@ -1811,7 +1842,8 @@
         breakevenTouch: null,
         maShape: null,
         maConvDuration: null,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
     } else {
       const method = document.getElementById('f-method').value;
@@ -1820,8 +1852,8 @@
       if (!result)  { showToast('⚠ 結果を選択してください'); return; }
       trade = {
         id:            uid(),
-        datetime:      datetimeEntry || new Date().toISOString(),
-        datetimeEntry: datetimeEntry || new Date().toISOString(),
+        datetime:      datetimeEntry || now,
+        datetimeEntry: datetimeEntry || now,
         datetimeExit:  datetimeExit || '',
         method,
         pairMain:  document.getElementById('f-pair-main').value,
@@ -1838,7 +1870,8 @@
         breakevenTouch: document.getElementById('f-breakeventouch').value || null,
         maShape: document.getElementById('f-mashape').value || null,
         maConvDuration: parseInt(document.getElementById('f-ma-conv').value) || null,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
     }
 
