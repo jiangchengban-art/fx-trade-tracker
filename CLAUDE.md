@@ -183,13 +183,50 @@
 
 詳細: [2026-05-22 セッションログ](../../memory/archived_session_2026_05_22.md)
 
-## 📋 次セッション検討項目
+## 🔧 2026-05-25 セッション：UI改善 + iPhone Firebase接続問題の診断と緊急対応
 
+**UI改善（完了）**
+- [x] 履歴カード: 手法と時間足を `逆張り · H1` のように1行表示 ✅
+- [x] 「前回の記録から〜日」バナーを非表示化 ✅
+- [x] カレンダー入出金ドット色追加（入金=水色 `#38bdf8`、出金=ピンク `#f472b6`） ✅
+- [x] Service Worker キャッシュ v18 → v20 ✅
+
+**iPhone Firebase接続問題の調査（原因未解明）**
+- ✅ PC: Firefox で Firebase 接続可能、12件のトレード取得
+- ❌ iPhone Safari/Chrome/Firefox: すべて Firebase からデータ読み込み不可
+- ✅ 原因分析: Firebase SDK は読み込まれ、セキュリティルールは正常、ローカルストレージは動作
+- 🔴 **根本原因は特定できず**（ネットワーク/CORS/User-Agent の問題か、それ以外か不明）
+
+**緊急対応: JSON 手動インポート機能（解決）**
+- [x] 「まとめ」タブに「JSON テキストからインポート」セクション追加 ✅
+- [x] `importFromJSON()` 関数実装 ✅
+- [x] PC で `copy(JSON.stringify(dbLoadRaw()))` → iPhone で貼り付けで同期可能 ✅
+- [x] **iPhone で履歴が表示されるようになった** ✅
+
+**当面の運用方針**
+1. **PC が主入力端末**（Firebase 接続が正常）
+2. **iPhone での入力は手動インポートで連携**
+3. **定期的に PC で JSON をコピー → iPhone に貼り付け**
+
+**詳細**: [2026-05-25 セッションログ](../../memory/archived_session_2026_05_25.md)
+
+## 📋 次セッション優先事項
+
+### 🔴 最優先
+- [ ] **iPhone の Firebase 接続問題の根本解決**
+  - Chrome DevTools Remote Debugging で診断（Mac 必要）
+  - ネットワークレベルのログ確認（CORS、SSL、DNS）
+  - Firebase Console で User-Agent/IP 制限確認
+
+### 🟡 中優先
 - [ ] メールアドレス認証の追加（ユーザー個別データ管理）
 - [ ] Firebase セキュリティルール強化（認証ユーザーのみアクセス可）
+- [ ] Service Worker の強制更新メカニズム
+
+### 🟢 低優先
 - [ ] 削除済みデータ自動クリーンアップ（墓標の定期削除）
-- [ ] Service Worker の Firebase 連携強化
 - [ ] タックス計算タブ（本格的な確定申告シミュレーター）
 - [ ] ゴミ箱UI（削除済みトレードの復元機能）
+- [ ] JSON インポート UI の改善（QR コード共有など）
 
-**最終更新**: 2026-05-22 — Firebase Realtime Database マルチデバイス同期実装完了
+**最終更新**: 2026-05-25 — UI改善・JSON手動インポート実装・iPhone Firebase接続問題を診断（原因未解明）

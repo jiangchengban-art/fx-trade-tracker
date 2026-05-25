@@ -1320,9 +1320,24 @@
         </div>
       </div>
 
+      <!-- JSONテキスト貼り付けインポート -->
+      <div class="bg-blue-50 rounded-2xl p-4 shadow-sm mb-4 border border-blue-100">
+        <h3 class="text-sm font-bold text-blue-700 mb-3">📋 JSON テキストからインポート</h3>
+        <p class="text-xs text-blue-600 mb-3">PC で Console で dbLoadRaw() を実行 → 結果を下のテキスト欄に貼り付け → インポート</p>
+        <textarea id="import-json-text" placeholder='[{"id":"...","datetime":"..."}...]'
+          class="w-full h-32 border border-blue-200 rounded-xl p-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white mb-3"></textarea>
+        <button onclick="importFromJSON()"
+          class="w-full flex items-center justify-center gap-2 p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all text-sm font-semibold">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
+          </svg>
+          インポート & 自動リロード
+        </button>
+      </div>
+
       <!-- App info -->
       <div class="text-center text-xs text-slate-300 pb-2">
-        FX トレード記録 — Supabase同期でマルチデバイス対応
+        FX トレード記録 — Firebase同期でマルチデバイス対応
       </div>
     </div>
 
@@ -1632,7 +1647,13 @@
         sessionStorage.setItem(BACKUP_KEY, JSON.stringify(merged));
         renderHistory();
         renderStats();
+      }, error => {
+        console.error('Firebase listener error:', error);
+        alert('Firebase エラー: ' + error.message);
       });
+    } else {
+      console.warn('Firebase が初期化されていません');
+      alert('⚠️ Firebase が初期化されていません');
     }
   });
 
@@ -4471,6 +4492,30 @@
     };
     reader.readAsText(file);
     event.target.value = '';
+  }
+
+  function importFromJSON() {
+    const text = document.getElementById('import-json-text').value.trim();
+    if (!text) {
+      showToast('⚠ JSON テキストを入力してください');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      const imported = Array.isArray(parsed) ? parsed : (parsed.trades || []);
+      if (!Array.isArray(imported) || imported.length === 0) {
+        showToast('⚠ 有効なデータが見つかりません');
+        return;
+      }
+      // localStorage に直接保存（上書き）
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+      sessionStorage.setItem(BACKUP_KEY, JSON.stringify(imported));
+      document.getElementById('import-json-text').value = '';
+      showToast('✓ ' + imported.length + '件インポートしました。リロード中...');
+      setTimeout(() => location.reload(), 1000);
+    } catch (e) {
+      showToast('⚠ JSON の形式が正しくありません: ' + e.message);
+    }
   }
 
   // ============================================================
