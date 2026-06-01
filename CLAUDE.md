@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v17）
+├── sw.js                   Service Worker（オフライン対応・現在 v23）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -148,6 +148,29 @@
 
 ---
 
+## 🔧 2026-05-28 セッション：QR コード生成機能実装
+
+**実装内容**
+- [x] QR コード生成ボタン追加（「データ管理」セクション、紫色） ✅ 2026-05-28
+- [x] 実装方式: Google Charts API（CDN ライブラリ不要、file:// でも動作） ✅ 2026-05-28
+- [x] モーダルUI: QR コード表示 + JSON コピーボタン ✅ 2026-05-28
+- [x] workflow_manual_sync_pc_iphone.md に QR コード方式を追加 ✅ 2026-05-28
+- [x] Service Worker キャッシュ v20 → v23 ✅ 2026-05-28
+
+**試行と学習**
+- ❌ qrcode.js ライブラリ → ライブラリ互換性エラー
+- ❌ qrcode v1.5.3 → CORS エラー（file:// プロトコル制限）
+- ✅ Google Charts API → 成功（外部 API で QR 生成）
+- ✅ Node.js http-server で ローカルサーバー起動（Python は失敗）
+
+**当面の運用**
+- PC で「JSONをQRコード化」ボタン → iPhone でカメラスキャン
+- 代替: 「JSON をコピー」ボタン → 手動貼り付けでインポート
+
+**次: Firebase Hosting へのデプロイ（2026-05-28 セッション後続予定）**
+
+詳細: [2026-05-28 セッションログ](../../memory/archived_session_2026_05_28.md)
+
 ## 🔧 2026-05-13 実装
 
 - [x] チャンスメモの自動開閉機能（入力あり→開く、なし→閉じる）✅ 2026-05-13
@@ -213,20 +236,24 @@
 ## 📋 次セッション優先事項
 
 ### 🔴 最優先
+- [ ] **Firebase Hosting へのデプロイを完了**
+  - `firebase deploy` で本番環境にプッシュ
+  - iPhone で `https://fx-trade-tracker-de055.web.app` にアクセス確認
+  - QR コード・JSON インポート機能の動作確認
+
+### 🟡 中優先
 - [ ] **iPhone の Firebase 接続問題の根本解決**
   - Chrome DevTools Remote Debugging で診断（Mac 必要）
   - ネットワークレベルのログ確認（CORS、SSL、DNS）
   - Firebase Console で User-Agent/IP 制限確認
-
-### 🟡 中優先
 - [ ] メールアドレス認証の追加（ユーザー個別データ管理）
 - [ ] Firebase セキュリティルール強化（認証ユーザーのみアクセス可）
-- [ ] Service Worker の強制更新メカニズム
 
 ### 🟢 低優先
+- [ ] QR コード URL 長制限対策（データ圧縮など）
+- [ ] Service Worker の強制更新メカニズム
 - [ ] 削除済みデータ自動クリーンアップ（墓標の定期削除）
 - [ ] タックス計算タブ（本格的な確定申告シミュレーター）
 - [ ] ゴミ箱UI（削除済みトレードの復元機能）
-- [ ] JSON インポート UI の改善（QR コード共有など）
 
-**最終更新**: 2026-05-25 — UI改善・JSON手動インポート実装・iPhone Firebase接続問題を診断（原因未解明）
+**最終更新**: 2026-05-28 — QR コード生成機能実装（Google Charts API 版）・Firebase Hosting デプロイ準備 (sw v23)

@@ -1302,6 +1302,14 @@
             CSVでエクスポート（Excel対応）
           </button>
 
+          <button onclick="showQRModal()"
+            class="w-full flex items-center gap-3 p-3.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl hover:bg-purple-100 active:scale-[0.98] transition-all text-sm font-semibold">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            JSONをQRコード化（iPhone転送）
+          </button>
+
           <label class="w-full flex items-center gap-3 p-3.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl hover:bg-emerald-100 active:scale-[0.98] transition-all text-sm font-semibold cursor-pointer">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
@@ -5180,6 +5188,83 @@
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  function showQRModal() {
+    const data = dbLoadRaw();
+    if (!data || data.length === 0) {
+      showToast('⚠ データがありません');
+      return;
+    }
+    const jsonStr = JSON.stringify(data);
+    const modal = document.getElementById('qr-modal');
+    const container = document.getElementById('qr-code-container');
+    container.innerHTML = '';
+
+    try {
+      const encoded = encodeURIComponent(jsonStr);
+      const qrUrl = 'https://chart.googleapis.com/chart?chs=256x256&chld=H|0&cht=qr&chl=' + encoded;
+      const img = document.createElement('img');
+      img.src = qrUrl;
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.backgroundColor = '#fff';
+      img.style.padding = '8px';
+      container.appendChild(img);
+      modal.style.display = 'flex';
+      showToast('✓ QR コードを生成しました');
+    } catch (err) {
+      showToast('⚠ QR コード生成エラー: ' + err.message);
+    }
+  }
+
+  function closeQRModal() {
+    document.getElementById('qr-modal').style.display = 'none';
+  }
+
+  document.getElementById('qr-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'qr-modal') closeQRModal();
+  });
+
+  function copyQRDataToClipboard() {
+    const data = dbLoadRaw();
+    if (!data || data.length === 0) {
+      showToast('⚠ データがありません');
+      return;
+    }
+    const jsonStr = JSON.stringify(data);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        showToast('✓ JSON をコピーしました');
+        closeQRModal();
+      }).catch(err => {
+        console.error('Copy failed:', err);
+        showToast('⚠ コピーに失敗しました');
+      });
+    } else {
+      showToast('⚠ ブラウザがコピー機能をサポートしていません');
+    }
+  }
   </script>
+
+  <!-- QR Code Modal -->
+  <div id="qr-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style="display: none;">
+    <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+      <h2 class="text-lg font-bold text-slate-800 mb-4">📱 QR コード（iPhone転送用）</h2>
+      <div id="qr-code-container" class="flex justify-center mb-6"></div>
+      <p class="text-xs text-slate-600 mb-4 text-center">
+        ✅ iPhone のカメラアプリで、このQRコードをスキャンしてください<br>
+        または、QRコードアプリで読み込んでください
+      </p>
+      <div class="space-y-2">
+        <button onclick="copyQRDataToClipboard()" class="w-full p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all text-sm font-semibold">
+          📋 JSON をコピー（代替手段）
+        </button>
+        <button onclick="closeQRModal()" class="w-full p-3 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 active:scale-[0.98] transition-all text-sm font-semibold">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
