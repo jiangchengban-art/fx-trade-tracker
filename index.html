@@ -1496,19 +1496,30 @@
     // クラウド（Firebase RTDB REST API）へ書き込み
     cloudPush(trades);
   }
-  // Console から実行可能: resetFirebaseToPC() — クラウドをローカル内容で完全上書き
-  function resetFirebaseToPC() {
+  // Console から実行可能: resetSupabaseToPC() — クラウドをローカル内容で完全上書き
+  function resetSupabaseToPC() {
     const trades = dbLoadRaw();
-    const obj = {};
-    trades.forEach(t => { obj[t.id] = t; });
-    fetch(FB_TRADES_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(obj)
+    const records = trades.map(t => ({
+      id: t.id,
+      data: t,
+      updated_at: new Date().toISOString()
+    }));
+    // 既存データを削除してから新規に書き込み
+    fetch(`${SUPABASE_URL}/rest/v1/trades`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}` }
     })
+      .then(() => fetch(`${SUPABASE_URL}/rest/v1/trades`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify(records)
+      }))
       .then(r => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        console.log('✅ クラウドを上書きしました（' + trades.length + '件）');
+        console.log('✅ Supabase を上書きしました（' + trades.length + '件）');
         showToast('クラウドを同期しました');
       })
       .catch(e => console.error('❌ クラウド書き込みエラー:', e));
@@ -1558,33 +1569,64 @@
   const _selectedIds = new Set();
 
   // ============================================================
-  // CLOUD SYNC — Firebase RTDB REST API（ただの HTTPS fetch・iOS Safari でも確実動作）
+  // CLOUD SYNC — Supabase（PC ↔ iPhone 同期）
   // ============================================================
-  const FB_DB_URL     = "https://fx-trade-tracker-de055-default-rtdb.asia-southeast1.firebasedatabase.app";
-  const FB_TRADES_URL = FB_DB_URL + "/trades.json";
+  const SUPABASE_URL = "https://vktrrrrfeelcfewltlfx.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdG5ycnJmZWVpY2Zld3RsbGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDMxNjAsImV4cCI6MjA5NTk3OTE2MH0.lS6BPaU1TK8yGOvhghXj3wuSh3YR3Idasai473u90gw";
 
-  // クラウドへ書き込み（PATCH = 指定 id のみマージ更新。削除は deleted:true の墓標で同期）
+  // クラウドへ書き込み（Supabase upsert）
   function cloudPush(trades) {
-    const obj = {};
-    trades.forEach(t => { obj[t.id] = t; });
-    return fetch(FB_TRADES_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(obj)
-    }).catch(e => console.warn('Cloud push error:', e));
+    const records = trades.map(t => ({
+      id: t.id,
+      data: t,
+      updated_at: new Date().toISOString()
+    }));
+    return fetch(`${SUPABASE_URL}/rest/v1/trades`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(records)
+    })
+      .then(r => {
+        if (!r.ok) {
+          return r.text().then(text => {
+            console.error('Cloud push error:', r.status, text);
+            throw new Error('HTTP ' + r.status);
+          });
+        }
+        return r.json();
+      })
+      .catch(e => console.warn('Cloud push failed:', e));
   }
 
   // クラウドから取得 → ローカルとマージ → 保存 →（変化があった時だけ）画面再描画
   function cloudPull() {
-    return fetch(FB_TRADES_URL, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+    return fetch(`${SUPABASE_URL}/rest/v1/trades`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    })
+      .then(r => {
+        if (!r.ok) {
+          return r.text().then(text => {
+            console.error('Cloud pull error:', r.status, text);
+            throw new Error('HTTP ' + r.status);
+          });
+        }
+        return r.json();
+      })
       .then(data => {
-        if (!data) return;
-        const remoteTrades = Object.values(data);
+        if (!data || data.length === 0) return;
+        const remoteTrades = data.map(row => row.data);
         const before = localStorage.getItem(STORAGE_KEY) || '';
         const merged = mergeTradesFB(dbLoadRaw(), remoteTrades);
         const json   = JSON.stringify(merged);
-        if (json === before) return;  // 変化なし → 再描画スキップ（ちらつき防止）
+        if (json === before) return;
         localStorage.setItem(STORAGE_KEY, json);
         try { sessionStorage.setItem(BACKUP_KEY, json); } catch {}
         if (typeof renderHistory === 'function') renderHistory();

@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v24）
+├── sw.js                   Service Worker（オフライン対応・現在 v25）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -87,13 +87,15 @@
 - `fx_chance_memo` — エントリーチャンスメモ
 - `fx_banner_dismissed` — バナー非表示フラグ
 
-### クラウド同期（REST API 版・2026-06-02以降）
-- Suabase同期機能は廃止済み（2026-05-19）
+### クラウド同期（Supabase REST API 版・2026-06-03以降）
+- Suabase 同期機能は廃止済み（2026-05-19）
 - Firebase SDK（WebSocket）は iPhone で繋がらないため撤去（2026-06-02）
-- **REST API（fetch ポーリング）で PC ↔ iPhone 間同期を実装** ✅
+- **Supabase REST API（fetch ポーリング）で PC ↔ iPhone 間同期を実装中** 🔧
 - 方式：8秒ごとにクラウドから取得 + 変化検知で再描画（ちらつき防止）
 - ローカルストレージはオフライン対応のバックアップとして動作
-- セキュリティルール：テストモード（全員読取・書込可）→ 認証付きに移行予定
+- テーブル：`trades`（`id TEXT PRIMARY KEY`, `data JSONB`, `updated_at TIMESTAMPTZ`）
+- RLS：無効化（テストモード・全員読取・書込可）→ 認証付きに移行予定
+- **現在の状態**: 実装完了・CORS エラー未解決（2026-06-03）
 
 ## 🧪 テスト項目
 
@@ -190,22 +192,50 @@
 
 ## 📋 次セッション優先事項
 
-### 🔴 最優先
-- [ ] **iPhone での Service Worker キャッシュ問題を解決**
-  - Application タブで Service Worker を Unregister → ページリロード
-  - 履歴が表示されるか確認（SW のキャッシュが新版 v24 を読み込まない可能性）
-  - 表示されたら → QR コード・JSON インポート機能の動作確認
+### 🔴 最優先（Supabase CORS エラー解決）
+- [ ] Supabase テーブル確認
+  - ダッシュボード Tables セクションで `trades` テーブル存在確認
+  - RLS が無効になっているか確認
+  
+- [ ] REST API 直接テスト
+  - URL: `https://vktrrrrfeelcfewltlfx.supabase.co/rest/v1/trades?apikey=<ANON_KEY>`
+  - ブラウザで JSON 返却確認
 
-### 🟡 中優先
+- [ ] localhost:8000 通信確認
+  - DevTools Network タブで詳細エラー確認
+  - Supabase Logs で API リクエスト到達確認
+
+### 🟡 中優先（解決後）
+- [ ] PC でテストトレード追加 → Supabase 保存確認
 - [ ] 双方向同期テスト（PC ↔ iPhone）
 - [ ] 8秒ポーリング の適切性判定（速い/遅い/ちょうどいい）
-- [ ] Firebase セキュリティルール強化（認証付きに移行）
 
 ### 🟢 低優先
+- [ ] Supabase セキュリティルール強化（認証付きに移行）
 - [ ] メールアドレス認証追加（ユーザー個別データ管理）
-- [ ] リアルタイム同期の実装（WebSocket 代替、例: Server-Sent Events）
-- [ ] 削除済みデータ自動クリーンアップ（墓標の定期削除）
-- [ ] タックス計算タブ（本格的な確定申告シミュレーター）
-- [ ] ゴミ箱UI（削除済みトレードの復元機能）
+- [ ] リアルタイム同期の実装（WebSocket 代替）
+- [ ] 削除済みデータ自動クリーンアップ
+- [ ] タックス計算タブ・ゴミ箱UI
 
-**最終更新**: 2026-06-02 — Firebase SDK 撤去・REST API 版に全面切り替え・Firebase Hosting デプロイ (sw v24)
+## 🔧 2026-06-03 セッション：Supabase 同期実装開始
+
+**背景**
+- 前セッションで Firebase REST API 版を実装したが、iPhone Service Worker キャッシュ問題が未解決
+- ユーザーから「Supabase で PC ↔ iPhone 同期を実装してほしい」と方針変更指示
+
+**実装内容**
+- [x] Supabase プロジェクト作成 ✅ 2026-06-03
+- [x] Supabase テーブル `trades` 作成 ✅ 2026-06-03
+- [x] Firebase → Supabase への cloudPush/cloudPull 切り替え ✅ 2026-06-03
+- [x] resetSupabaseToPC() 関数実装 ✅ 2026-06-03
+- [x] Service Worker v24 → v25 ✅ 2026-06-03
+- [ ] CORS エラー解決（次セッション優先）
+
+**テスト状況**
+- ❌ PC（localhost:8000）: CORS エラー（`net::ERR_FAILED`）で通信失敗
+- ⏳ Supabase テーブル作成確認待ち（SQL は実行成功したが、テーブル表示未確認）
+- ⏳ iPhone テスト未実施
+
+**詳細**: [[archived_session_2026_06_03]]
+
+**最終更新**: 2026-06-03 — Firebase → Supabase への切り替え・cloudPush/cloudPull 実装・CORS エラー未解決 (sw v25)
