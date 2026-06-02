@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v23）
+├── sw.js                   Service Worker（オフライン対応・現在 v24）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -87,9 +87,11 @@
 - `fx_chance_memo` — エントリーチャンスメモ
 - `fx_banner_dismissed` — バナー非表示フラグ
 
-### Firebase Realtime Database マルチデバイス同期（2026-05-22以降）
+### クラウド同期（REST API 版・2026-06-02以降）
 - Suabase同期機能は廃止済み（2026-05-19）
-- **Firebase Realtime Database で PC ↔ iPhone 間リアルタイム同期を実装** ✅
+- Firebase SDK（WebSocket）は iPhone で繋がらないため撤去（2026-06-02）
+- **REST API（fetch ポーリング）で PC ↔ iPhone 間同期を実装** ✅
+- 方式：8秒ごとにクラウドから取得 + 変化検知で再描画（ちらつき防止）
 - ローカルストレージはオフライン対応のバックアップとして動作
 - セキュリティルール：テストモード（全員読取・書込可）→ 認証付きに移行予定
 
@@ -148,28 +150,6 @@
 
 ---
 
-## 🔧 2026-05-28 セッション：QR コード生成機能実装
-
-**実装内容**
-- [x] QR コード生成ボタン追加（「データ管理」セクション、紫色） ✅ 2026-05-28
-- [x] 実装方式: Google Charts API（CDN ライブラリ不要、file:// でも動作） ✅ 2026-05-28
-- [x] モーダルUI: QR コード表示 + JSON コピーボタン ✅ 2026-05-28
-- [x] workflow_manual_sync_pc_iphone.md に QR コード方式を追加 ✅ 2026-05-28
-- [x] Service Worker キャッシュ v20 → v23 ✅ 2026-05-28
-
-**試行と学習**
-- ❌ qrcode.js ライブラリ → ライブラリ互換性エラー
-- ❌ qrcode v1.5.3 → CORS エラー（file:// プロトコル制限）
-- ✅ Google Charts API → 成功（外部 API で QR 生成）
-- ✅ Node.js http-server で ローカルサーバー起動（Python は失敗）
-
-**当面の運用**
-- PC で「JSONをQRコード化」ボタン → iPhone でカメラスキャン
-- 代替: 「JSON をコピー」ボタン → 手動貼り付けでインポート
-
-**次: Firebase Hosting へのデプロイ（2026-05-28 セッション後続予定）**
-
-詳細: [2026-05-28 セッションログ](../../memory/archived_session_2026_05_28.md)
 
 ## 🔧 2026-05-13 実装
 
@@ -186,74 +166,46 @@
 
 詳細: [2026-05-19 セッションログ](../../memory/archived_session_2026_05_19.md)
 
-## 🔧 2026-05-22 セッション：Firebase Realtime Database マルチデバイス同期実装
+
+## 🔧 2026-06-01/02 セッション：Firebase 同期方式の根本改革（REST API 版）
+
+**背景**
+- 前セッション（2026-05-28）で QR コード機能を実装・デプロイしたが、iPhone で「データがありません」エラー
+- 原因調査 → **Firebase SDK（WebSocket）が iPhone で繋がらない**ことを特定
 
 **実装内容**
-- [x] ローカルストレージ自動削除バグを修正（ページロード時のクリア処理を削除）✅ 2026-05-22
-- [x] Firebase Realtime Database を統合 ✅ 2026-05-22
-- [x] Firebase SDK CDN を index.html に追加（firebase-app-compat v11.0.0） ✅ 2026-05-22
-- [x] Firebase 初期化コード + firebaseConfig 設定 ✅ 2026-05-22
-- [x] `dbSave()` 拡張 → Firebase 全件書き込み ✅ 2026-05-22
-- [x] `mergeTradesFB()` 関数追加（ローカル/リモートマージ） ✅ 2026-05-22
-- [x] DOMContentLoaded に Firebase リアルタイムリスナー追加 ✅ 2026-05-22
-- [x] PC ↔ iPhone リアルタイム同期 動作確認 ✅ 2026-05-22
+- [x] Firebase SDK（WebSocket）を撤去 ✅ 2026-06-02
+- [x] REST API（fetch）による同期に全面切り替え ✅ 2026-06-02
+- [x] `cloudPush()` / `cloudPull()` 関数実装（PATCH/GET） ✅ 2026-06-02
+- [x] 8秒ポーリング + 変化検知で再描画最適化 ✅ 2026-06-02
+- [x] Service Worker キャッシュ v23 → v24 ✅ 2026-06-02
+- [x] Firebase Hosting へのデプロイ ✅ 2026-06-02
 
-**テスト結果（完全成功）**
-- ✅ PC でトレード入力 → iPhone に表示
-- ✅ iPhone でトレード入力 → PC に表示
-- ✅ ページリロードなしでリアルタイム反映
-- ✅ ローカルストレージにも保存（オフライン対応）
+**テスト状況**
+- ✅ PC（Chrome）: REST API で正常に同期
+- ✅ Firebase RTDB: 20 件のトレード保存確認（直接 REST URL でアクセス可能）
+- ⏳ iPhone（Safari）: Service Worker キャッシュ問題の可能性 → 次セッションで確認予定
 
-詳細: [2026-05-22 セッションログ](../../memory/archived_session_2026_05_22.md)
-
-## 🔧 2026-05-25 セッション：UI改善 + iPhone Firebase接続問題の診断と緊急対応
-
-**UI改善（完了）**
-- [x] 履歴カード: 手法と時間足を `逆張り · H1` のように1行表示 ✅
-- [x] 「前回の記録から〜日」バナーを非表示化 ✅
-- [x] カレンダー入出金ドット色追加（入金=水色 `#38bdf8`、出金=ピンク `#f472b6`） ✅
-- [x] Service Worker キャッシュ v18 → v20 ✅
-
-**iPhone Firebase接続問題の調査（原因未解明）**
-- ✅ PC: Firefox で Firebase 接続可能、12件のトレード取得
-- ❌ iPhone Safari/Chrome/Firefox: すべて Firebase からデータ読み込み不可
-- ✅ 原因分析: Firebase SDK は読み込まれ、セキュリティルールは正常、ローカルストレージは動作
-- 🔴 **根本原因は特定できず**（ネットワーク/CORS/User-Agent の問題か、それ以外か不明）
-
-**緊急対応: JSON 手動インポート機能（解決）**
-- [x] 「まとめ」タブに「JSON テキストからインポート」セクション追加 ✅
-- [x] `importFromJSON()` 関数実装 ✅
-- [x] PC で `copy(JSON.stringify(dbLoadRaw()))` → iPhone で貼り付けで同期可能 ✅
-- [x] **iPhone で履歴が表示されるようになった** ✅
-
-**当面の運用方針**
-1. **PC が主入力端末**（Firebase 接続が正常）
-2. **iPhone での入力は手動インポートで連携**
-3. **定期的に PC で JSON をコピー → iPhone に貼り付け**
-
-**詳細**: [2026-05-25 セッションログ](../../memory/archived_session_2026_05_25.md)
+**詳細**: [[archived_session_2026_06_01_02]]
 
 ## 📋 次セッション優先事項
 
 ### 🔴 最優先
-- [ ] **Firebase Hosting へのデプロイを完了**
-  - `firebase deploy` で本番環境にプッシュ
-  - iPhone で `https://fx-trade-tracker-de055.web.app` にアクセス確認
-  - QR コード・JSON インポート機能の動作確認
+- [ ] **iPhone での Service Worker キャッシュ問題を解決**
+  - Application タブで Service Worker を Unregister → ページリロード
+  - 履歴が表示されるか確認（SW のキャッシュが新版 v24 を読み込まない可能性）
+  - 表示されたら → QR コード・JSON インポート機能の動作確認
 
 ### 🟡 中優先
-- [ ] **iPhone の Firebase 接続問題の根本解決**
-  - Chrome DevTools Remote Debugging で診断（Mac 必要）
-  - ネットワークレベルのログ確認（CORS、SSL、DNS）
-  - Firebase Console で User-Agent/IP 制限確認
-- [ ] メールアドレス認証の追加（ユーザー個別データ管理）
-- [ ] Firebase セキュリティルール強化（認証ユーザーのみアクセス可）
+- [ ] 双方向同期テスト（PC ↔ iPhone）
+- [ ] 8秒ポーリング の適切性判定（速い/遅い/ちょうどいい）
+- [ ] Firebase セキュリティルール強化（認証付きに移行）
 
 ### 🟢 低優先
-- [ ] QR コード URL 長制限対策（データ圧縮など）
-- [ ] Service Worker の強制更新メカニズム
+- [ ] メールアドレス認証追加（ユーザー個別データ管理）
+- [ ] リアルタイム同期の実装（WebSocket 代替、例: Server-Sent Events）
 - [ ] 削除済みデータ自動クリーンアップ（墓標の定期削除）
 - [ ] タックス計算タブ（本格的な確定申告シミュレーター）
 - [ ] ゴミ箱UI（削除済みトレードの復元機能）
 
-**最終更新**: 2026-05-28 — QR コード生成機能実装（Google Charts API 版）・Firebase Hosting デプロイ準備 (sw v23)
+**最終更新**: 2026-06-02 — Firebase SDK 撤去・REST API 版に全面切り替え・Firebase Hosting デプロイ (sw v24)
