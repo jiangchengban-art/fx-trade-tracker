@@ -4,7 +4,13 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "CLAUDE.md",
+      "NEXT_SESSION_CONTEXT.txt",
+      "NEXT_SESSION_PROMPT.md",
+      "SESSION_PROMPT.txt",
+      "skills-lock.json",
+      "generate-icons.html"
     ]
   }
 }

@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v25）
+├── sw.js                   Service Worker（オフライン対応・現在 v33）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -190,27 +190,36 @@
 
 **詳細**: [[archived_session_2026_06_01_02]]
 
+## 🔧 2026-06-05/06 セッション：iPhone 双方向同期完成・画像省略モード
+
+**背景**
+- PC → Supabase は成功していたが、iPhone は Supabase からのデータ取得(pull)が失敗
+- 原因調査 → **localStorage 容量オーバー**（画像 4MB で上限 5MB を溢れさせていた）
+
+**実装内容**
+- [x] Service Worker: Supabase API をキャッシュ対象外に ✅ 2026-06-05 (v30)
+- [x] iPhone pull トリガーを大幅追加（visibilitychange/pageshow/focus/touchstart） ✅ 2026-06-05 (v30)
+- [x] 画面に同期状況を表示（原因特定用）✅ 2026-06-05 (v31)
+- [x] 容量オーバー時の自動画像除外フォールバック ✅ 2026-06-05 (v32)
+- [x] iPhone オンデマンド画像読み込み機能（📷 ボタン） ✅ 2026-06-06 (v33)
+- [x] Firebase Hosting へのデプロイ ✅ 2026-06-06
+
+**テスト状況**
+- ✅ PC: 画像込みで 31 件保存確認
+- ✅ iPhone: 履歴が表示される（画像省略状態）
+- ✅ オンデマンド画像読み込みで PC 側の画像が表示可能
+- ⏳ 実運用での容量確認（予定）
+
+**詳細**: [[archived_session_2026_06_05_06_iphone_sync]]
+
+**最終更新**: 2026-06-06 — Supabase 双方向同期 ✅ 完成・PC ↔ iPhone 実装完了・オンデマンド画像読み込み・Firebase Hosting v33
+
 ## 📋 次セッション優先事項
 
-### 🔴 最優先（Supabase CORS エラー解決）
-- [ ] Supabase テーブル確認
-  - ダッシュボード Tables セクションで `trades` テーブル存在確認
-  - RLS が無効になっているか確認
-  
-- [ ] REST API 直接テスト
-  - URL: `https://vktrrrrfeelcfewltlfx.supabase.co/rest/v1/trades?apikey=<ANON_KEY>`
-  - ブラウザで JSON 返却確認
-
-- [ ] localhost:8000 通信確認
-  - DevTools Network タブで詳細エラー確認
-  - Supabase Logs で API リクエスト到達確認
-
-### 🟡 中優先（解決後）
-- [ ] PC でテストトレード追加 → Supabase 保存確認
-- [ ] 双方向同期テスト（PC ↔ iPhone）
-- [ ] 8秒ポーリング の適切性判定（速い/遅い/ちょうどいい）
-
-### 🟢 低優先
+### 🟢 低優先（安定性確認）
+- [ ] PC で画像付きトレードが正常に動作確認
+- [ ] iPhone で「📷 画像を読み込む」機能の動作確認
+- [ ] 通常運用での容量オーバーが本当に解決したか確認
 - [ ] Supabase セキュリティルール強化（認証付きに移行）
 - [ ] メールアドレス認証追加（ユーザー個別データ管理）
 - [ ] リアルタイム同期の実装（WebSocket 代替）

@@ -1488,12 +1488,43 @@
     });
     return Array.from(map.values());
   }
+  // トレード配列から画像を外した軽量コピーを作る（iPhone の容量対策）
+  function stripImages(trades) {
+    return trades.map(t => {
+      if (!t || !t.images) return t;
+      return { ...t, images: { m15: null, h1: null, h4: null, d1: null, others: [] } };
+    });
+  }
+  // 一度でも容量オーバーしたら、以降そのセッションは画像を外して保存する
+  let _leanMode = false;
+  // ローカル保存（容量オーバー時は画像を外してでも記録本体を必ず残す）
+  // 戻り値: { ok, changed, stripped }
+  function saveTradesLocal(trades) {
+    const current = localStorage.getItem(STORAGE_KEY) || '';
+    if (!_leanMode) {
+      const full = JSON.stringify(trades);
+      if (full === current) return { ok: true, changed: false, stripped: false };
+      try {
+        localStorage.setItem(STORAGE_KEY, full);
+        try { sessionStorage.setItem(BACKUP_KEY, full); } catch {}
+        return { ok: true, changed: true, stripped: false };
+      } catch (e) {
+        _leanMode = true; // QuotaExceeded → 以降は軽量モード
+      }
+    }
+    const lean = JSON.stringify(stripImages(trades));
+    if (lean === current) return { ok: true, changed: false, stripped: true };
+    try {
+      localStorage.setItem(STORAGE_KEY, lean);
+      try { sessionStorage.setItem(BACKUP_KEY, lean); } catch {}
+      return { ok: true, changed: true, stripped: true };
+    } catch (e2) {
+      return { ok: false, changed: false, stripped: true };
+    }
+  }
   function dbSave(trades) {
-    const json = JSON.stringify(trades);
-    localStorage.setItem(STORAGE_KEY, json);
-    // Mirror to sessionStorage so data survives iOS localStorage eviction within session
-    try { sessionStorage.setItem(BACKUP_KEY, json); } catch {}
-    // クラウド（Firebase RTDB REST API）へ書き込み
+    // ローカルは容量に応じて画像省略可・クラウドへは画像込みフルで送る
+    saveTradesLocal(trades);
     cloudPush(trades);
   }
   // Console から実行可能: resetSupabaseToPC() — クラウドをローカル内容で完全上書き
@@ -1505,15 +1536,20 @@
       updated_at: new Date().toISOString()
     }));
     // 既存データを削除してから新規に書き込み
-    fetch(`${SUPABASE_URL}/rest/v1/trades`, {
+    fetch(`${SUPABASE_URL}/rest/v1/trades?id=neq.__never__`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${SUPABASE_KEY}` }
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
     })
       .then(() => fetch(`${SUPABASE_URL}/rest/v1/trades`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_KEY}`
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Prefer': 'resolution=merge-duplicates'
         },
         body: JSON.stringify(records)
       }))
@@ -1571,7 +1607,7 @@
   // ============================================================
   // CLOUD SYNC — Supabase（PC ↔ iPhone 同期）
   // ============================================================
-  const SUPABASE_URL = "https://vktrrrrfeelcfewltlfx.supabase.co";
+  const SUPABASE_URL = "https://vktnrrrfeeicfewtllfx.supabase.co";
   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdG5ycnJmZWVpY2Zld3RsbGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDMxNjAsImV4cCI6MjA5NTk3OTE2MH0.lS6BPaU1TK8yGOvhghXj3wuSh3YR3Idasai473u90gw";
 
   // クラウドへ書き込み（Supabase upsert）
@@ -1585,6 +1621,7 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'Prefer': 'resolution=merge-duplicates'
       },
@@ -1597,17 +1634,39 @@
             throw new Error('HTTP ' + r.status);
           });
         }
-        return r.json();
+        // POST 成功時 Supabase は本文が空なので json() せず text() で受ける
+        return r.text();
       })
       .catch(e => console.warn('Cloud push failed:', e));
   }
 
+  // 画面下部に同期状況を表示（iPhone は DevTools が無いので画面で確認できるようにする）
+  function setSyncStatus(msg, color) {
+    let el = document.getElementById('sync-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sync-status';
+      el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:9999;'
+        + 'font-size:11px;padding:3px 8px;border-radius:8px;'
+        + 'background:rgba(0,0,0,0.7);color:#fff;pointer-events:none;'
+        + 'font-family:monospace;max-width:90vw;';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.color = color || '#9ae6b4';
+  }
+  function _hhmmss() {
+    const d = new Date();
+    return d.toTimeString().slice(0, 8);
+  }
+
   // クラウドから取得 → ローカルとマージ → 保存 →（変化があった時だけ）画面再描画
   function cloudPull() {
+    setSyncStatus('☁️ 同期中… ' + _hhmmss(), '#cbd5e1');
     return fetch(`${SUPABASE_URL}/rest/v1/trades`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`
       }
     })
@@ -1621,18 +1680,35 @@
         return r.json();
       })
       .then(data => {
-        if (!data || data.length === 0) return;
-        const remoteTrades = data.map(row => row.data);
-        const before = localStorage.getItem(STORAGE_KEY) || '';
+        const n = Array.isArray(data) ? data.length : 0;
+        if (!data || data.length === 0) { setSyncStatus('☁️ 取得 0件 ' + _hhmmss(), '#9ae6b4'); return; }
+        const remoteTrades = data.map(row => {
+          const t = row.data;
+          // クラウド上で画像を持っているか記録（省略時に📷ボタン表示のため）
+          const imgs = t.images;
+          if (imgs && (imgs.m15 || imgs.h1 || imgs.h4 || imgs.d1 || (imgs.others && imgs.others.length > 0))) {
+            t._hasImages = true;
+          }
+          return t;
+        });
         const merged = mergeTradesFB(dbLoadRaw(), remoteTrades);
-        const json   = JSON.stringify(merged);
-        if (json === before) return;
-        localStorage.setItem(STORAGE_KEY, json);
-        try { sessionStorage.setItem(BACKUP_KEY, json); } catch {}
-        if (typeof renderHistory === 'function') renderHistory();
-        if (typeof renderStats   === 'function') renderStats();
+        const res = saveTradesLocal(merged);
+        if (res.changed) {
+          if (typeof renderHistory === 'function') renderHistory();
+          if (typeof renderStats   === 'function') renderStats();
+        }
+        if (!res.ok) {
+          setSyncStatus('⚠️ 保存失敗(容量) ' + _hhmmss(), '#fca5a5');
+        } else if (res.stripped) {
+          setSyncStatus('✅ ' + merged.length + '件(画像省略) ' + _hhmmss(), '#fcd34d');
+        } else {
+          setSyncStatus('✅ ' + merged.length + '件 ' + _hhmmss(), '#9ae6b4');
+        }
       })
-      .catch(e => console.warn('Cloud pull error:', e));
+      .catch(e => {
+        console.warn('Cloud pull error:', e);
+        setSyncStatus('⚠️ 同期エラー: ' + (e && e.message ? e.message : e) + ' ' + _hhmmss(), '#fca5a5');
+      });
   }
 
   // ============================================================
@@ -1694,14 +1770,22 @@
 
     // クラウド同期（REST API）: 起動時に1回取得 → 以後ポーリングで擬似リアルタイム
     cloudPull();
-    // タブを開いている間は 8 秒ごとにクラウドから取り込み
+    // タブを開いている間は 6 秒ごとにクラウドから取り込み
     setInterval(() => {
       if (document.visibilityState === 'visible') cloudPull();
-    }, 8000);
-    // バックグラウンドから復帰した瞬間にも即同期
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') cloudPull();
-    });
+    }, 6000);
+    // iOS Safari は setInterval を抑制するため、復帰系イベントを総動員して pull を確実化
+    // （visibilitychange / pageshow / focus / タッチ）
+    const pullIfVisible = () => { if (document.visibilityState === 'visible') cloudPull(); };
+    document.addEventListener('visibilitychange', pullIfVisible);
+    window.addEventListener('pageshow', pullIfVisible);
+    window.addEventListener('focus', pullIfVisible);
+    // 画面に触れたら（操作再開のサイン）最大でも数秒に1回だけ pull
+    let _lastTouchPull = 0;
+    document.addEventListener('touchstart', () => {
+      const now = Date.now();
+      if (now - _lastTouchPull > 4000) { _lastTouchPull = now; pullIfVisible(); }
+    }, { passive: true });
   });
 
   function setDefaultDatetime() {
@@ -2148,9 +2232,14 @@
       ? `<span class="text-xs px-2 py-0.5 rounded-full" style="background:${SKIP_REASONS[t.skipReason]?.color}20;color:${SKIP_REASONS[t.skipReason]?.color};border:1px solid ${SKIP_REASONS[t.skipReason]?.color}40">${skipReasonLabel(t.skipReason)}</span>`
       : '';
 
-    const imgThumb = flatImgList.length > 0
+    // 画像が省略されているが PC では登録済み（_hasImages フラグ）の場合は📷ボタンを表示
+    const hasLocalImgs = flatImgList.length > 0;
+    const hasRemoteImgs = !hasLocalImgs && t._hasImages;
+    const imgThumb = hasLocalImgs
       ? `<div class="flex gap-1.5 mt-2 flex-wrap">${flatImgList.map((img, i) => `<img src="${img.src}" onclick="event.stopPropagation();openImgViewer('${t.id}',${i})" class="w-12 h-12 object-cover rounded-xl cursor-pointer border border-slate-200 active:opacity-70" title="${img.label}">`).join('')}</div>`
-      : '';
+      : hasRemoteImgs
+        ? `<div class="mt-2"><button onclick="event.stopPropagation();loadImgFromCloud('${t.id}',this)" class="text-xs text-blue-500 px-2 py-1 rounded-lg border border-blue-200 active:bg-blue-50">📷 画像を読み込む</button></div>`
+        : '';
 
     const tagHtml = (t.tags || []).length > 0
       ? `<div class="flex gap-1 flex-wrap mt-1">${(t.tags||[]).map(tg => `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">#${esc(tg)}</span>`).join('')}</div>`
@@ -4961,6 +5050,34 @@
   function closeImgViewer() {
     document.getElementById('img-viewer').classList.add('hidden');
     viewerImgs = []; viewerIndex = 0;
+  }
+
+  // クラウドから1件だけ画像を読み込んでビューアで開く（iPhone 向けオンデマンド）
+  function loadImgFromCloud(tradeId, btn) {
+    if (btn) { btn.textContent = '⏳ 読み込み中…'; btn.disabled = true; }
+    fetch(`${SUPABASE_URL}/rest/v1/trades?id=eq.${tradeId}`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    })
+      .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+      .then(rows => {
+        if (!rows || rows.length === 0) throw new Error('not found');
+        const imgs = rows[0].data && rows[0].data.images;
+        const flat = flattenImgs(imgs || []);
+        if (!flat.length) {
+          if (btn) { btn.textContent = '📷 画像なし'; }
+          return;
+        }
+        viewerImgs   = flat.map(x => x.src);
+        viewerLabels = flat.map(x => x.label);
+        viewerIndex  = 0;
+        updateImgViewer();
+        document.getElementById('img-viewer').classList.remove('hidden');
+        if (btn) { btn.textContent = '📷 画像を読み込む'; btn.disabled = false; }
+      })
+      .catch(e => {
+        if (btn) { btn.textContent = '⚠️ 読込失敗'; btn.disabled = false; }
+        console.warn('loadImgFromCloud error:', e);
+      });
   }
 
   // ============================================================

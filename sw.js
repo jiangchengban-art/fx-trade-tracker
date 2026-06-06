@@ -1,5 +1,5 @@
 // FX Trade Tracker - Service Worker
-const CACHE_NAME = 'fx-trader-v25';
+const CACHE_NAME = 'fx-trader-v33';
 const STATIC_ASSETS = [
   './index.html',
   './manifest.json',
@@ -28,6 +28,15 @@ self.addEventListener('activate', (event) => {
 // Fetch: cache-first for static, network-first for CDN
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // 非 GET（POST/PATCH/DELETE 等）は SW が触らずブラウザに任せる
+  // （Cache API は GET しか保存できず、Supabase 同期の POST を壊すため）
+  if (event.request.method !== 'GET') return;
+
+  // Supabase API は絶対にキャッシュしない（常に最新を取得 = iPhone 同期遅延の防止）
+  if (url.hostname.endsWith('.supabase.co')) {
+    return; // SW を通さずブラウザの fetch にそのまま任せる
+  }
 
   // Network-first for CDN resources (Charts.js, Tailwind)
   if (url.origin !== location.origin) {
