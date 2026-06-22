@@ -1457,9 +1457,10 @@
       return [];
     } catch { return []; }
   }
-  // Active trades: tombstones (deleted=true) とチャンス履歴は除外
-  function dbLoad() { return dbLoadRaw().filter(t => !t.deleted && t._type !== 'chance'); }
+  // Active trades: tombstones (deleted=true) とチャンス履歴・メモは除外
+  function dbLoad() { return dbLoadRaw().filter(t => !t.deleted && t._type !== 'chance' && t._type !== 'memo'); }
   function dbLoadChances() { return dbLoadRaw().filter(t => !t.deleted && t._type === 'chance'); }
+  function dbLoadMemo() { return dbLoadRaw().find(t => t._type === 'memo' && !t.deleted) || null; }
   // Firebase マージ: 最新の updatedAt を採用
   function mergeTradesFB(local, remote) {
     const map = new Map();
@@ -1694,6 +1695,8 @@
         if (res.changed) {
           if (typeof renderHistory === 'function') renderHistory();
           if (typeof renderStats   === 'function') renderStats();
+          if (typeof initChanceMemos === 'function') initChanceMemos(true);
+          if (typeof renderChanceHistory === 'function') renderChanceHistory();
         }
         if (!res.ok) {
           setSyncStatus('⚠️ 保存失敗(容量) ' + _hhmmss(), '#fca5a5');
@@ -1761,9 +1764,29 @@
     checkLastEntryBanner();
 
     // チャンスメモを確実に保存（iOS Safari でバックグラウンド kill 対策）
-    window.addEventListener('pagehide', saveChanceMemos);
+    // チャンスメモをページ離脱時にクラウド同期込みで保存
+    const _flushMemos = () => {
+      if (!document.getElementById('cm-pair-0')) return;
+      clearTimeout(_memoSyncTimer);
+      const existing = loadChanceMemos();
+      const data = [0,1,2,3,4].map(i => {
+        const prev = existing[i] || {};
+        const pair      = document.getElementById(`cm-pair-${i}`)?.value || '';
+        const method    = document.getElementById(`cm-method-${i}`)?.value || '';
+        const timeframe = document.getElementById(`cm-tf-${i}`)?.value || '';
+        const reason    = document.getElementById(`cm-reason-${i}`)?.value || '';
+        const changed   = pair !== prev.pair || method !== prev.method ||
+                          timeframe !== prev.timeframe || reason !== prev.reason;
+        return {
+          pair, method, timeframe, reason,
+          updatedAt: changed ? new Date().toISOString() : (prev.updatedAt || null),
+        };
+      });
+      _saveMemoRecord(data, false);
+    };
+    window.addEventListener('pagehide', _flushMemos);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') saveChanceMemos();
+      if (document.visibilityState === 'hidden') _flushMemos();
     });
 
     // クラウド同期（REST API）: 起動時に1回取得 → 以後ポーリングで擬似リアルタイム
@@ -4015,7 +4038,7 @@
   // ============================================================
   // エントリーチャンス メモ
   // ============================================================
-  const CHANCE_MEMO_KEY = 'fx_chance_memo';
+  const CHANCE_MEMO_ID = 'memo_chance_slots';
   const CHANCE_PAIRS = [
     '','US500','US100','US30','JP225','BTC/USD','ETH/USD',
     'GOLD','SILVER','WTI',
@@ -4027,10 +4050,46 @@
   ];
 
   function loadChanceMemos() {
-    try { const d = JSON.parse(localStorage.getItem(CHANCE_MEMO_KEY)) || []; while(d.length < 5) d.push({}); return d; }
-    catch { return [{},{},{},{},{}]; }
+    const rec = dbLoadMemo();
+    if (rec && Array.isArray(rec.slots)) {
+      const d = rec.slots.slice();
+      while (d.length < 5) d.push({});
+      return d;
+    }
+    // 旧 localStorage からのマイグレーション
+    try {
+      const old = JSON.parse(localStorage.getItem('fx_chance_memo'));
+      if (Array.isArray(old) && old.length > 0) {
+        const d = old.slice();
+        while (d.length < 5) d.push({});
+        _saveMemoRecord(d);
+        localStorage.removeItem('fx_chance_memo');
+        return d;
+      }
+    } catch {}
+    return [{},{},{},{},{}];
   }
 
+  function _saveMemoRecord(slots, localOnly) {
+    const all = dbLoadRaw();
+    const idx = all.findIndex(t => t.id === CHANCE_MEMO_ID && t._type === 'memo');
+    const now = new Date().toISOString();
+    const rec = {
+      id: CHANCE_MEMO_ID,
+      _type: 'memo',
+      slots,
+      updatedAt: now,
+      deleted: false,
+    };
+    if (idx >= 0) all[idx] = rec; else all.push(rec);
+    if (localOnly) {
+      saveTradesLocal(all);
+    } else {
+      dbSave(all);
+    }
+  }
+
+  let _memoSyncTimer = null;
   function saveChanceMemos() {
     if (!document.getElementById('cm-pair-0')) return;
     const existing = loadChanceMemos();
@@ -4047,18 +4106,23 @@
         updatedAt: changed ? new Date().toISOString() : (prev.updatedAt || null),
       };
     });
-    localStorage.setItem(CHANCE_MEMO_KEY, JSON.stringify(data));
+    // 入力中はローカルのみ → 3秒後にクラウド同期（デバウンス）
+    _saveMemoRecord(data, true);
+    clearTimeout(_memoSyncTimer);
+    _memoSyncTimer = setTimeout(() => {
+      _saveMemoRecord(loadChanceMemos(), false);
+    }, 3000);
   }
 
   function clearChanceMemos() {
-    localStorage.removeItem(CHANCE_MEMO_KEY);
+    _saveMemoRecord([{},{},{},{},{}]);
     initChanceMemos();
   }
 
   function clearChanceMemo(i) {
     const memos = loadChanceMemos();
     memos[i] = {};
-    localStorage.setItem(CHANCE_MEMO_KEY, JSON.stringify(memos));
+    _saveMemoRecord(memos);
     initChanceMemos(true);
   }
 
@@ -4142,6 +4206,11 @@
           <button onclick="event.stopPropagation();commitChance(${i},'vanished')"
             class="flex-1 text-xs font-semibold py-1.5 rounded-lg active:scale-95 transition-all"
             style="background:#64748b20;color:#94a3b8;border:1px solid #64748b40">💨 消滅</button>
+        </div>
+        <div class="flex justify-end mt-2">
+          <button type="button" onclick="event.stopPropagation();clearChanceMemo(${i})"
+            class="text-[9px] px-2 py-1 rounded active:scale-95 transition-all"
+            style="background:#1e293b;color:#ef4444;border:1px solid #334155;line-height:1.2">🗑 クリア</button>
         </div>`;
 
       return `
@@ -4152,9 +4221,6 @@
           <span class="text-xs font-semibold flex-1" style="color:${col}">チャンス ${i+1}</span>
           ${m.pair ? `<span class="text-xs font-bold" style="color:#94a3b8">${m.pair}</span>` : ''}
           ${m.updatedAt ? `<span class="text-[9px] flex-shrink-0" style="color:#475569">${fmtDate(m.updatedAt)}</span>` : ''}
-          <button type="button" onclick="event.stopPropagation();clearChanceMemo(${i})"
-            class="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0"
-            style="background:#1e293b;color:#64748b;border:1px solid #334155;line-height:1.2">クリア</button>
           ${arrow}
         </div>
         <div id="cm-content-${i}" class="px-3 pb-3 ${collapsed ? 'hidden' : ''}">

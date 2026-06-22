@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v33）
+├── sw.js                   Service Worker（オフライン対応・現在 v41）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -70,32 +70,40 @@
 - 控除オプションは `<details>` アコーディオン形式（デフォルト折りたたみ）
 - 基礎控除・給与所得控除・住民税均等割をチェックボックスで個別ON/OFF
 
-### ★ エントリーチャンスメモ（initChanceMemos / saveChanceMemos）
-- `localStorage['fx_chance_memo']` に保存（pair/method/timeframe/reason/**updatedAt**）
-- `pagehide` + `visibilitychange` で iOS 離脱時も確実保存
-- `saveChanceMemos()` は要素不在時（summary タブ外）に空上書きしないガード付き
-- **updatedAt**: pair/method/timeframe/reason に変更があったときのみ更新（ページ開閉では更新しない）
+### ★ エントリーチャンスメモ（initChanceMemos / saveChanceMemos / v40以降）
+- `fx_trades_v1` に `_type: 'memo'` レコード（`id: 'memo_chance_slots'`）として保存 ✅ v40
+- トレード表示時は自動除外（`dbLoad()` で `_type !== 'memo'` フィルター）
+- **同期**: 既存の `cloudPush`/`cloudPull` パイプラインで PC ↔ iPhone 同期 ✅ v40
+- **デバウンス**: 入力中はローカルのみ → 3秒後にクラウド同期（パフォーマンス）
+- **pagehide/visibilitychange**: 即座にクラウド同期（iOS 離脱時も確実保存）
+- **旧キー**: `fx_chance_memo` から自動マイグレーション＆削除 ✅ v40
 - ヘッダーに最終更新日時を表示（`fmtDate(m.updatedAt)` で日付+時間）
 
 ## 💾 データ管理
 
 ### ローカルストレージキー
-- `fx_trades_v1` — すべてのトレード記録（JSON配列）
+- `fx_trades_v1` — すべてのトレード記録 + チャンスメモ（v40以降は memo レコードも含む）
 - `fx_active_tab` — 現在のアクティブタブ
 - `fx_onboarding_done` — オンボーディング済みフラグ
 - `fx_last_export_date` — 最後にエクスポートした日付
-- `fx_chance_memo` — エントリーチャンスメモ
 - `fx_banner_dismissed` — バナー非表示フラグ
+- ~~`fx_chance_memo`~~ — **廃止** ✅ v40（自動マイグレーション → `fx_trades_v1` の memo レコードに統合）
 
-### クラウド同期（Supabase REST API 版・2026-06-03以降）
+### クラウド同期（Supabase REST API 版・v24以降）
 - Suabase 同期機能は廃止済み（2026-05-19）
 - Firebase SDK（WebSocket）は iPhone で繋がらないため撤去（2026-06-02）
-- **Supabase REST API（fetch ポーリング）で PC ↔ iPhone 間同期を実装中** 🔧
-- 方式：8秒ごとにクラウドから取得 + 変化検知で再描画（ちらつき防止）
-- ローカルストレージはオフライン対応のバックアップとして動作
+- **Supabase REST API（fetch ポーリング）で PC ↔ iPhone 間同期** ✅ v24以降・実装完了
+- 方式：
+  - 起動時に1回 cloudPull → その後 6秒ごとポーリング
+  - iOS Safari は setInterval 抑制のため visibilitychange/pageshow/focus イベント でも pull トリガー
+  - 変化検知で再描画（ちらつき防止）
+- データ構成：
+  - トレード記録（`_type` 未指定）
+  - チャンス履歴（`_type: 'chance'`）
+  - チャンスメモ（`_type: 'memo'`）✅ v40 で統合
 - テーブル：`trades`（`id TEXT PRIMARY KEY`, `data JSONB`, `updated_at TIMESTAMPTZ`）
 - RLS：無効化（テストモード・全員読取・書込可）→ 認証付きに移行予定
-- **現在の状態**: 実装完了・CORS エラー未解決（2026-06-03）
+- **現在の状態**: 実装完了・安定動作中（v41）
 
 ## 🧪 テスト項目
 
@@ -214,7 +222,22 @@
 
 **最終更新**: 2026-06-06 — Supabase 双方向同期 ✅ 完成・PC ↔ iPhone 実装完了・オンデマンド画像読み込み・Firebase Hosting v33
 
-## 📋 次セッション優先事項
+## 📋 次セッション優先事項（2026-06-22 現在）
+
+### 🔴 必須（ユーザー報告・実装待ち）
+- [ ] **iPhone Safari でメモが反映されているか実機確認**
+  - PC 記入 → iPhone リロード → 同期確認
+  - Service Worker v41 キャッシュ更新確認（タブ完全閉じ必須）
+- [ ] **Supabase のメモレコード汚染確認**
+  - v40 実装前のテストで空メモが push された可能性
+  - コンソール直接確認または `resetSupabaseToPC()` 検討
+
+### 🟡 拡張（安定性向上）
+- [ ] 修正A 実装：「中身が変わっていない保存は完全スキップ」
+  - iPhone が空メモで PC データを上書きしないようにする
+  - `_saveMemoRecord()` に深さ比較ロジック追加
+- [ ] メモのソフト削除（`deleted: true`）が正常に動作するか確認
+- [ ] CSV エクスポート時にメモが除外されているか確認
 
 ### 🟢 低優先（安定性確認）
 - [ ] PC で画像付きトレードが正常に動作確認
@@ -284,3 +307,38 @@
 **詳細**: [[archived_session_2026_06_19]]
 
 **最終更新**: 2026-06-19 — 📷画像修正・チャンス5枠・履歴UI・転換率・同期堅牢化 (sw v39)
+
+## 🔧 2026-06-21/22 セッション：チャンスメモ同期修正＆クリアボタンUI改善
+
+**背景**
+- ユーザーから「PC に記入したチャンスメモが iPhone で反映されない」と報告
+- 原因：チャンスメモが旧設計で `fx_chance_memo`（localStorage 独立キー）に保存されており、Supabase 同期対象外だった
+
+**実装内容**
+- [x] チャンスメモを `_type: 'memo'` レコードとして `fx_trades_v1` に統合 ✅ 2026-06-21 (v40)
+  - 既存の `cloudPush`/`cloudPull` パイプラインに自動的に乗る
+- [x] `loadChanceMemos()` / `saveChanceMemos()` を `dbSave()` ベースに書き換え ✅ 2026-06-21 (v40)
+  - 入力中はローカルのみ、3秒デバウンス後にクラウド同期
+  - pagehide/visibilitychange 時は即座にクラウド同期
+- [x] `dbLoadMemo()` 関数新設、`dbLoad()` フィルターに `_type !== 'memo'` 追加 ✅ 2026-06-21 (v40)
+- [x] `cloudPull()` でメモ受信時に UI 再描画 ✅ 2026-06-21 (v40)
+- [x] 旧 `fx_chance_memo` キーからのマイグレーション実装 ✅ 2026-06-21 (v40)
+- [x] クリアボタンをヘッダーから結果ボタン行の下に移動 ✅ 2026-06-22 (v41)
+  - 矢印ボタンの誤タップリスク排除
+  - 「🗑 クリア」に変更して用途明確化
+- [x] Service Worker キャッシュ v39 → v40 → v41 ✅ 2026-06-22
+- [x] Firebase Hosting へのデプロイ ✅ 2026-06-22
+
+**テスト状況**
+- ✅ ローカル（Playwright）：メモ入力→3秒後クラウド push 確認・Commit/Clear 動作確認・UI 位置確認
+- ⏳ iPhone Safari：v41 キャッシュ更新後の実機確認が必要（タブ閉じ→再読込）
+- ⚠️ 可能性：v40 実装前のテストで空メモが push されている可能性あり（クラウド汚染確認推奨）
+
+**技術ポイント**
+- デバウンス＋`localOnly` フラグで入力パフォーマンスと同期確実性を両立
+- `_flushMemos()` で pagehide 時に必ずクラウド同期
+- ローカルマイグレーション：古い `fx_chance_memo` が見つかれば自動変換後削除
+
+**詳細**: [[archived_session_2026_06_21_22]]
+
+**最終更新**: 2026-06-22 — チャンスメモPC↔iPhone同期実装・クリアボタンUI改善完了 (sw v41)
