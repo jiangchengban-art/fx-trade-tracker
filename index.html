@@ -1604,9 +1604,9 @@
   }
   function cloudPush(trades) {
     const records = trades
-      // iPhone（画像省略中）が画像なしデータでクラウドの画像を上書き消去するのを防ぐ
-      // ※画像付きトレードの編集は PC で行う運用
-      .filter(t => !isImgStrippedLocally(t))
+      // 転送量削減: 画像ありトレードは push 対象から除外（iPhone は「📷 読み込む」で必要時だけ取得）
+      // iPhone からの push で画像なしデータがクラウドの画像を上書き消去するのも防ぐ
+      .filter(t => !t._hasImages && !isImgStrippedLocally(t))
       .map(t => {
         const { _hasImages, ...clean } = t; // 内部フラグはクラウドに送らない
         return { id: t.id, data: clean, updated_at: new Date().toISOString() };
@@ -1791,10 +1791,10 @@
 
     // クラウド同期（REST API）: 起動時に1回取得 → 以後ポーリングで擬似リアルタイム
     cloudPull();
-    // タブを開いている間は 6 秒ごとにクラウドから取り込み
+    // タブを開いている間は 30 秒ごとにクラウドから取り込み（転送量削減）
     setInterval(() => {
       if (document.visibilityState === 'visible') cloudPull();
-    }, 6000);
+    }, 30000);
     // iOS Safari は setInterval を抑制するため、復帰系イベントを総動員して pull を確実化
     // （visibilitychange / pageshow / focus / タッチ）
     const pullIfVisible = () => { if (document.visibilityState === 'visible') cloudPull(); };
