@@ -526,6 +526,34 @@
             <input type="hidden" id="f-mashape" value="">
           </div>
 
+          <!-- プロと同じタイミングでエントリーできたか (entry のみ) -->
+          <div class="deposit-hide">
+            <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#818cf8">🎯 プロと同じタイミングでエントリーできたか</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-group="protiming" data-prefix="f" data-value="match"
+                onclick="selectToggle('protiming','match','f')"
+                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">✅ できた</button>
+              <button type="button" data-group="protiming" data-prefix="f" data-value="miss"
+                onclick="selectToggle('protiming','miss','f')"
+                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">❌ できなかった</button>
+            </div>
+            <input type="hidden" id="f-protiming" value="">
+          </div>
+
+          <!-- 損切りは今後排除可能か (result=stoploss のとき表示) -->
+          <div id="f-stoploss-avoidable-block" class="hidden deposit-hide">
+            <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#f87171">🔍 この損切りは今後排除可能な理由だったか</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-group="stoplossavoidable" data-prefix="f" data-value="yes"
+                onclick="selectToggle('stoplossavoidable','yes','f')"
+                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">🔧 排除可能</button>
+              <button type="button" data-group="stoplossavoidable" data-prefix="f" data-value="no"
+                onclick="selectToggle('stoplossavoidable','no','f')"
+                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">🛡️ 想定内</button>
+            </div>
+            <input type="hidden" id="f-stoplossavoidable" value="">
+          </div>
+
           <!-- MA収束〜拡散期間 -->
           <div class="deposit-hide">
             <label class="block text-xs font-semibold uppercase tracking-wide mb-1" style="color:#34d399">MA収束〜拡散期間 <span class="font-normal normal-case tracking-normal" style="color:#94a3b8">GC/DC後→拡散まで（時間）</span></label>
@@ -989,6 +1017,12 @@
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
         <h3 class="text-sm font-bold text-slate-600 mb-3">📐 MA収束〜拡散期間</h3>
         <div id="ma-conv-stats"></div>
+      </div>
+
+      <!-- プロ同期率・排除可能損切率 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
+        <h3 class="text-sm font-bold text-slate-600 mb-3">🎯 エントリー品質 & 損切り分析</h3>
+        <div id="entry-quality-stats"></div>
       </div>
 
       <!-- Calendar + Chance Rate -->
@@ -1872,6 +1906,14 @@
       straight: 'border-blue-500 bg-blue-50 text-blue-700',
       fake:     'border-pink-500 bg-pink-50 text-pink-700',
     },
+    protiming: {
+      match: 'border-emerald-500 bg-emerald-50 text-emerald-700',
+      miss:  'border-red-500 bg-red-50 text-red-700',
+    },
+    stoplossavoidable: {
+      yes: 'border-amber-500 bg-amber-50 text-amber-700',
+      no:  'border-slate-400 bg-slate-100 text-slate-600',
+    },
   };
   const INACTIVE_STYLE = 'border-slate-200 text-slate-500';
 
@@ -1883,10 +1925,28 @@
       const active = btn.dataset.value === value;
       btn.className = btn.className
         .replace(/border-\S+|bg-\S+|text-\S+/g, '').trim();
-      const isSmall = group === 'result' || group === 'skipreason' || group === 'breakeventouch' || group === 'mashape';
+      const isSmall = group === 'result' || group === 'skipreason' || group === 'breakeventouch' || group === 'mashape' || group === 'protiming' || group === 'stoplossavoidable';
       const base = `toggle-btn py-2.5 rounded-xl ${isSmall ? 'text-xs' : 'text-sm'} font-semibold border-2 transition-all active:scale-95`;
       btn.className = base + ' ' + (active ? TOGGLE_STYLES[group][value] : INACTIVE_STYLE);
     });
+
+    // Show/hide stoplossAvoidable block when result changes
+    if (group === 'result') {
+      const p = prefix || 'f';
+      const saBlock = document.getElementById(p + '-stoploss-avoidable-block');
+      if (saBlock) {
+        if (value === 'stoploss') {
+          saBlock.classList.remove('hidden');
+        } else {
+          saBlock.classList.add('hidden');
+          const saHidden = document.getElementById(p + '-stoplossavoidable');
+          if (saHidden) saHidden.value = '';
+          document.querySelectorAll(`[data-group="stoplossavoidable"][data-prefix="${p}"]`).forEach(b => {
+            b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
+          });
+        }
+      }
+    }
 
     // Show/hide blocks when status changes
     if (group === 'status') {
@@ -1984,6 +2044,8 @@
         breakevenTouch: null,
         maShape: null,
         maConvDuration: null,
+        proTiming: null,
+        stoplossAvoidable: null,
         createdAt: new Date().toISOString(),
       };
     } else {
@@ -2011,6 +2073,8 @@
         breakevenTouch: document.getElementById('f-breakeventouch').value || null,
         maShape: document.getElementById('f-mashape').value || null,
         maConvDuration: parseInt(document.getElementById('f-ma-conv').value) || null,
+        proTiming: document.getElementById('f-protiming').value || null,
+        stoplossAvoidable: document.getElementById('f-stoplossavoidable').value || null,
         createdAt: new Date().toISOString(),
       };
     }
@@ -2069,6 +2133,20 @@
     });
     const maConvEl = document.getElementById('f-ma-conv');
     if (maConvEl) maConvEl.value = '';
+    // Reset proTiming
+    const ptHidden = document.getElementById('f-protiming');
+    if (ptHidden) ptHidden.value = '';
+    document.querySelectorAll('[data-group="protiming"][data-prefix="f"]').forEach(b => {
+      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
+    });
+    // Reset stoplossAvoidable
+    const saBlock = document.getElementById('f-stoploss-avoidable-block');
+    if (saBlock) saBlock.classList.add('hidden');
+    const saHidden = document.getElementById('f-stoplossavoidable');
+    if (saHidden) saHidden.value = '';
+    document.querySelectorAll('[data-group="stoplossavoidable"][data-prefix="f"]').forEach(b => {
+      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
+    });
   }
 
   // ============================================================
@@ -2296,6 +2374,8 @@
           ${t.reason ? `<div class="text-xs text-slate-400 mt-0.5 line-clamp-1">${esc(t.reason)}</div>` : ''}
           <div class="text-[10px] text-slate-400 mt-1">${timeStr}</div>
           ${t.maConvDuration ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">MA収束: </span><span style="color:#34d399;font-weight:600">${t.maConvDuration}h</span></div>` : ''}
+          ${t.proTiming ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">🎯 </span><span style="color:${t.proTiming === 'match' ? '#10b981' : '#f87171'};font-weight:600">${t.proTiming === 'match' ? 'プロ同期' : 'タイミングずれ'}</span></div>` : ''}
+          ${t.stoplossAvoidable ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">損切: </span><span style="color:${t.stoplossAvoidable === 'yes' ? '#f59e0b' : '#94a3b8'};font-weight:600">${t.stoplossAvoidable === 'yes' ? '🔧 排除可能' : '🛡️ 想定内'}</span></div>` : ''}
           ${tagHtml}
         </div>
       </div>
@@ -2482,6 +2562,23 @@
         ${label}
       </button>`
     ).join('');
+    const proTimingBtns = [['match','✅ できた'],['miss','❌ できなかった']].map(([v, label]) =>
+      `<button type="button" data-group="protiming" data-prefix="e" data-value="${v}"
+        onclick="selectToggle('protiming','${v}','e')"
+        class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95
+          ${t.proTiming === v ? TOGGLE_STYLES.protiming[v] : INACTIVE_STYLE}">
+        ${label}
+      </button>`
+    ).join('');
+    const saBlockHidden = t.result === 'stoploss' ? '' : 'hidden';
+    const stoplossAvoidableBtns = [['yes','🔧 排除可能'],['no','🛡️ 想定内']].map(([v, label]) =>
+      `<button type="button" data-group="stoplossavoidable" data-prefix="e" data-value="${v}"
+        onclick="selectToggle('stoplossavoidable','${v}','e')"
+        class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95
+          ${t.stoplossAvoidable === v ? TOGGLE_STYLES.stoplossavoidable[v] : INACTIVE_STYLE}">
+        ${label}
+      </button>`
+    ).join('');
     const beBlockHidden = '';
 
     document.getElementById('edit-form-wrap').innerHTML = `
@@ -2559,6 +2656,16 @@
           <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#60a5fa">MA収束・拡散の形状</label>
           <div class="grid grid-cols-2 gap-2">${maShapeBtns}</div>
           <input type="hidden" id="e-mashape" value="${t.maShape || ''}">
+        </div>
+        <div class="deposit-hide">
+          <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#818cf8">🎯 プロと同じタイミングでエントリーできたか</label>
+          <div class="grid grid-cols-2 gap-2">${proTimingBtns}</div>
+          <input type="hidden" id="e-protiming" value="${t.proTiming || ''}">
+        </div>
+        <div id="e-stoploss-avoidable-block" class="${saBlockHidden} deposit-hide">
+          <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#f87171">🔍 この損切りは今後排除可能な理由だったか</label>
+          <div class="grid grid-cols-2 gap-2">${stoplossAvoidableBtns}</div>
+          <input type="hidden" id="e-stoplossavoidable" value="${t.stoplossAvoidable || ''}">
         </div>
         <div class="deposit-hide">
           <label class="block text-xs font-semibold uppercase tracking-wide mb-1" style="color:#34d399">MA収束〜拡散期間 <span class="font-normal normal-case tracking-normal text-slate-400">GC/DC後→拡散まで（時間）</span></label>
@@ -2685,6 +2792,8 @@
         breakevenTouch: null,
         maShape: null,
         maConvDuration: null,
+        proTiming: null,
+        stoplossAvoidable: null,
         reason:    document.getElementById('e-reason').value.trim(),
         tags:      [],
         updatedAt: new Date().toISOString(),
@@ -2709,6 +2818,8 @@
         breakevenTouch: document.getElementById('e-breakeventouch').value || null,
         maShape: document.getElementById('e-mashape').value || null,
         maConvDuration: parseInt(document.getElementById('e-ma-conv').value) || null,
+        proTiming: document.getElementById('e-protiming').value || null,
+        stoplossAvoidable: document.getElementById('e-stoplossavoidable').value || null,
         reason:    document.getElementById('e-reason').value.trim(),
         images:    { m15: eImgs.m15, h1: eImgs.h1, h4: eImgs.h4, d1: eImgs.d1, others: [...eImgs.others] },
         tags:      [...eTags],
@@ -2912,6 +3023,7 @@
     renderSkipAnalysis(trades);
     renderEntryDurationStats(trades);
     renderMaConvStats(trades);
+    renderEntryQualityStats(trades);
     renderCapitalChart();
     renderChanceRate();
   }
@@ -5462,6 +5574,59 @@
       </div>
       <div class="text-[10px] text-slate-400 mb-2 text-right">${vals.length}件のデータ　緑＝平均を含む範囲</div>
       <div class="space-y-1">${bars}</div>`;
+  }
+
+  // ENTRY QUALITY & STOPLOSS ANALYSIS
+  // ============================================================
+  function renderEntryQualityStats(trades) {
+    const el = document.getElementById('entry-quality-stats');
+    if (!el) return;
+
+    const entries = trades.filter(t => t.status === 'entry');
+    const ptTrades = entries.filter(t => t.proTiming);
+    const ptMatch  = ptTrades.filter(t => t.proTiming === 'match').length;
+    const ptTotal  = ptTrades.length;
+
+    const stoplossAll = entries.filter(t => t.result === 'stoploss');
+    const saTrades    = stoplossAll.filter(t => t.stoplossAvoidable);
+    const saYes       = saTrades.filter(t => t.stoplossAvoidable === 'yes').length;
+    const saTotal     = saTrades.length;
+
+    const proRatePct = ptTotal > 0 ? Math.round((ptMatch / ptTotal) * 100) : null;
+    const saRatePct  = saTotal > 0 ? Math.round((saYes  / saTotal) * 100) : null;
+
+    const noData = proRatePct === null && saRatePct === null;
+    if (noData) {
+      el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">データがありません<br><span class="text-xs text-slate-300">エントリー登録時に各項目を入力してください</span></p>';
+      return;
+    }
+
+    const proBar = proRatePct !== null ? `
+      <div class="mb-4">
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-xs font-semibold text-slate-500">🎯 プロ同期率</span>
+          <span class="text-2xl font-black" style="color:#818cf8">${proRatePct}<span class="text-sm font-bold ml-0.5" style="color:#a5b4fc">%</span></span>
+        </div>
+        <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f1f5f9">
+          <div class="h-full rounded-full transition-all" style="width:${proRatePct}%;background:#818cf8"></div>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-1 text-right">✅ できた ${ptMatch}回 / 全 ${ptTotal}回</div>
+      </div>` : '';
+
+    const saBar = saRatePct !== null ? `
+      <div>
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-xs font-semibold text-slate-500">🔍 排除可能損切り率</span>
+          <span class="text-2xl font-black" style="color:#f59e0b">${saRatePct}<span class="text-sm font-bold ml-0.5" style="color:#fcd34d">%</span></span>
+        </div>
+        <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f1f5f9">
+          <div class="h-full rounded-full transition-all" style="width:${saRatePct}%;background:#f59e0b"></div>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-1 text-right">🔧 排除可能 ${saYes}回 / 全損切 ${saTotal}回</div>
+        <div class="text-[10px] mt-1" style="color:#94a3b8">※ 評価済み損切りのみ集計（未評価の損切りは除外）</div>
+      </div>` : '';
+
+    el.innerHTML = proBar + saBar;
   }
 
   // CAPITAL CHART (real trades)
