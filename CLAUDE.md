@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v41）
+├── sw.js                   Service Worker（オフライン対応・現在 v44）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -384,3 +384,41 @@
 **詳細**: [[archived_session_2026_07_02_supabase_egress]]
 
 **最終更新**: 2026-07-02 — Supabase Egress 超過解析・v42 転送量削減実装・画像保存戦略確立 (sw v42)
+
+## 🔧 2026-07-03 セッション：エントリー品質 & 損切り分析機能（v43）
+
+- [x] 登録/編集フォームに「🎯 プロと同じタイミングでエントリーできたか」トグル（`proTiming`: match/miss）✅ (v43)
+- [x] 「🔍 この損切りは今後排除可能な理由だったか」トグル（`stoplossAvoidable`: yes/no、結果=損切のとき表示）✅ (v43)
+- [x] 履歴カードにバッジ表示・統計タブに「エントリー品質 & 損切り分析」セクション（プロ同期率・排除可能損切率）✅ (v43)
+- [x] Service Worker v42 → v43・Firebase Hosting デプロイ ✅ 2026-07-03
+
+## 🔧 2026-07-08 セッション：全体リファクタリング＆バグ修正（v44）
+
+**プロジェクト全体を精査して最適化。約590行削減（5806→5216行）**
+
+**バグ修正**
+- [x] `maConvDuration` の `parseInt` → `parseFloat`（0.5h 刻みの値が消えるバグ）✅ (v44)
+- [x] CSV エクスポートのフィールド名修正（`t.mashape`→`t.maShape` / `t.maConv`→`t.maConvDuration`、常に空列だった）+ プロ同期/損切排除可能の列追加 ✅ (v44)
+- [x] **修正A 実装**: `_saveMemoRecord` で内容が変わっていない保存を完全スキップ（空メモ・同一内容の push が他デバイスを上書きするのを防止）✅ (v44)
+- [x] `toggleReviewed` 削除（`dbLoad()`→`dbSave()` でメモ・チャンス履歴・墓標が全消失するデータ喪失バグ持ちの未使用関数）✅ (v44)
+
+**仕様整合**
+- [x] プロ同期ブロックを entry ステータス時のみ表示に（スルー/ミスでは非表示・値クリア）✅ (v44)
+- [x] 損切排除可能ブロックは entry かつ 結果=損切 のみ表示。保存時もガード ✅ (v44)
+- [x] `clearToggleGroup` / `updateEntryQualityBlocks` ヘルパー新設（resetRegisterForm も簡素化）✅ (v44)
+
+**死にコード削除（HTML 要素が存在しない/未参照の関数群）**
+- [x] `renderBreakdowns` / `renderBreakdownV2` / `renderStatusBreakdown` / `switchBreakdownTab`（成績内訳タブは v10 で削除済みだった）
+- [x] `renderSummary`（`sum-*` 要素は存在せず、`result === 'win'/'loss'` という誤ったキー参照もあった）
+- [x] `renderOpportunityLoss` / `renderEntryVsSkip` / `renderChanceSimulation` / `calcEvMult` / `RESULT_MULT` / `computeSkipSimStats` / `calcSkipSimPnl`
+- [x] QR モーダル一式（Google Charts QR API は廃止済みで動作不能）/ `importData` / `importFromJSON` / `fmtTime` / `toggleFilterSection` / `fmtPF` / `labelForKey`
+
+**改善**
+- [x] JSON エクスポートを `dbLoadRaw()`（チャンス履歴・メモ込みの完全バックアップ）に変更・version 3 ✅ (v44)
+- [x] `restoreFromJSON()` コンソール用復元関数を新設（バックアップ JSON から全上書き復元）✅ (v44)
+- [x] 表記修正: フッター「Firebase同期」→「Supabase同期」、入金→入出金ラベル ✅ (v44)
+- [x] Service Worker v43 → v44 ✅
+
+**テスト**: Playwright で登録/編集/entry限定表示/0.5h保存/修正A/全タブ切替を回帰テスト済み・全合格
+
+**最終更新**: 2026-07-08 — 全体リファクタリング・データ喪失バグ排除・修正A実装・590行削減 (sw v44)

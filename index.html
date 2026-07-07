@@ -527,7 +527,7 @@
           </div>
 
           <!-- プロと同じタイミングでエントリーできたか (entry のみ) -->
-          <div class="deposit-hide">
+          <div id="f-protiming-block" class="hidden deposit-hide">
             <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#818cf8">🎯 プロと同じタイミングでエントリーできたか</label>
             <div class="grid grid-cols-2 gap-2">
               <button type="button" data-group="protiming" data-prefix="f" data-value="match"
@@ -696,7 +696,7 @@
             <option value="entry">エントリー</option>
             <option value="through">スルー</option>
             <option value="miss">ミス</option>
-            <option value="deposit">入金</option>
+            <option value="deposit">入出金</option>
           </select>
           <select id="fd-result" onchange="selectFilter('result',this.value)"
             class="text-xs border border-slate-200 rounded-lg px-1.5 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400">
@@ -1359,7 +1359,7 @@
 
       <!-- App info -->
       <div class="text-center text-xs text-slate-300 pb-2">
-        FX トレード記録 — Firebase同期でマルチデバイス対応
+        FX トレード記録 — Supabase同期でマルチデバイス対応
       </div>
     </div>
 
@@ -1870,7 +1870,7 @@
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'history') renderHistory();
     if (tab === 'stats')   { renderStats(); renderCalendar(); renderChanceRate(); }
-    if (tab === 'summary') { renderSummary(); initChanceMemos(); renderChanceHistory(); renderTaxSim(); updateBackupReminder(); }
+    if (tab === 'summary') { initChanceMemos(); renderChanceHistory(); renderTaxSim(); updateBackupReminder(); }
   }
 
   // ============================================================
@@ -1917,6 +1917,33 @@
   };
   const INACTIVE_STYLE = 'border-slate-200 text-slate-500';
 
+  // トグルグループの選択値と見た目をリセットする共通ヘルパー
+  function clearToggleGroup(p, group) {
+    const hidden = document.getElementById(p + '-' + group);
+    if (hidden) hidden.value = '';
+    document.querySelectorAll(`[data-group="${group}"][data-prefix="${p}"]`).forEach(b => {
+      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
+    });
+  }
+
+  // プロ同期（entry のみ）/ 損切排除可能（entry かつ 損切のみ）ブロックの表示制御
+  function updateEntryQualityBlocks(p) {
+    const status  = document.getElementById(p + '-status')?.value || '';
+    const result  = document.getElementById(p + '-result')?.value || '';
+    const isEntry = status === 'entry';
+    const ptBlock = document.getElementById(p + '-protiming-block');
+    if (ptBlock) {
+      ptBlock.classList.toggle('hidden', !isEntry);
+      if (!isEntry) clearToggleGroup(p, 'protiming');
+    }
+    const saBlock = document.getElementById(p + '-stoploss-avoidable-block');
+    if (saBlock) {
+      const show = isEntry && result === 'stoploss';
+      saBlock.classList.toggle('hidden', !show);
+      if (!show) clearToggleGroup(p, 'stoplossavoidable');
+    }
+  }
+
   function selectToggle(group, value, prefix = '') {
     const hiddenId = (prefix ? prefix + '-' : 'f-') + group;
     document.getElementById(hiddenId).value = value;
@@ -1930,22 +1957,9 @@
       btn.className = base + ' ' + (active ? TOGGLE_STYLES[group][value] : INACTIVE_STYLE);
     });
 
-    // Show/hide stoplossAvoidable block when result changes
-    if (group === 'result') {
-      const p = prefix || 'f';
-      const saBlock = document.getElementById(p + '-stoploss-avoidable-block');
-      if (saBlock) {
-        if (value === 'stoploss') {
-          saBlock.classList.remove('hidden');
-        } else {
-          saBlock.classList.add('hidden');
-          const saHidden = document.getElementById(p + '-stoplossavoidable');
-          if (saHidden) saHidden.value = '';
-          document.querySelectorAll(`[data-group="stoplossavoidable"][data-prefix="${p}"]`).forEach(b => {
-            b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-          });
-        }
-      }
+    // プロ同期 / 損切排除可能ブロック: status・result どちらの変化でも再評価
+    if (group === 'result' || group === 'status') {
+      updateEntryQualityBlocks(prefix || 'f');
     }
 
     // Show/hide blocks when status changes
@@ -1958,11 +1972,7 @@
           skipBlock.classList.remove('hidden');
         } else {
           skipBlock.classList.add('hidden');
-          const hidden = document.getElementById(p + '-skipreason');
-          if (hidden) hidden.value = '';
-          document.querySelectorAll(`[data-group="skipreason"][data-prefix="${p}"]`).forEach(b => {
-            b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-          });
+          clearToggleGroup(p, 'skipreason');
         }
       }
       // pnl-block: スルー(through)のときのみ非表示（登録フォームのみ）
@@ -2072,9 +2082,9 @@
         skipReason: isSkipStatus(status) ? (document.getElementById('f-skipreason').value || null) : null,
         breakevenTouch: document.getElementById('f-breakeventouch').value || null,
         maShape: document.getElementById('f-mashape').value || null,
-        maConvDuration: parseInt(document.getElementById('f-ma-conv').value) || null,
-        proTiming: document.getElementById('f-protiming').value || null,
-        stoplossAvoidable: document.getElementById('f-stoplossavoidable').value || null,
+        maConvDuration: parseFloat(document.getElementById('f-ma-conv').value) || null,
+        proTiming: status === 'entry' ? (document.getElementById('f-protiming').value || null) : null,
+        stoplossAvoidable: (status === 'entry' && result === 'stoploss') ? (document.getElementById('f-stoplossavoidable').value || null) : null,
         createdAt: new Date().toISOString(),
       };
     }
@@ -2109,44 +2119,16 @@
     renderImgPreview('f');
     fTags = [];
     renderTagChips('f');
-    // Reset skip reason block
-    const skipBlock = document.getElementById('f-skip-block');
-    if (skipBlock) skipBlock.classList.add('hidden');
+    // 条件表示ブロックを初期状態（非表示・未選択）に戻す
+    ['skipreason','breakeventouch','mashape','protiming','stoplossavoidable'].forEach(g => clearToggleGroup('f', g));
+    document.getElementById('f-skip-block')?.classList.add('hidden');
+    document.getElementById('f-protiming-block')?.classList.add('hidden');
+    document.getElementById('f-stoploss-avoidable-block')?.classList.add('hidden');
     // Reset pnl block (show again)
     const pnlBlock = document.getElementById('f-pnl-block');
     if (pnlBlock) pnlBlock.classList.remove('hidden');
-    const skipHidden = document.getElementById('f-skipreason');
-    if (skipHidden) skipHidden.value = '';
-    document.querySelectorAll('[data-group="skipreason"][data-prefix="f"]').forEach(b => {
-      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-    });
-    // Reset be-block
-    const beHidden = document.getElementById('f-breakeventouch');
-    if (beHidden) beHidden.value = '';
-    document.querySelectorAll('[data-group="breakeventouch"][data-prefix="f"]').forEach(b => {
-      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-    });
-    const maHidden = document.getElementById('f-mashape');
-    if (maHidden) maHidden.value = '';
-    document.querySelectorAll('[data-group="mashape"][data-prefix="f"]').forEach(b => {
-      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-    });
     const maConvEl = document.getElementById('f-ma-conv');
     if (maConvEl) maConvEl.value = '';
-    // Reset proTiming
-    const ptHidden = document.getElementById('f-protiming');
-    if (ptHidden) ptHidden.value = '';
-    document.querySelectorAll('[data-group="protiming"][data-prefix="f"]').forEach(b => {
-      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-    });
-    // Reset stoplossAvoidable
-    const saBlock = document.getElementById('f-stoploss-avoidable-block');
-    if (saBlock) saBlock.classList.add('hidden');
-    const saHidden = document.getElementById('f-stoplossavoidable');
-    if (saHidden) saHidden.value = '';
-    document.querySelectorAll('[data-group="stoplossavoidable"][data-prefix="f"]').forEach(b => {
-      b.className = 'toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95 ' + INACTIVE_STYLE;
-    });
   }
 
   // ============================================================
@@ -2444,15 +2426,6 @@
     renderHistory();
   }
 
-  function toggleFilterSection(name) {
-    const sec   = document.getElementById('fsec-' + name);
-    const arrow = document.getElementById('farrow-' + name);
-    if (!sec) return;
-    const opening = sec.classList.contains('hidden');
-    sec.classList.toggle('hidden');
-    if (arrow) arrow.style.transform = opening ? 'rotate(180deg)' : 'rotate(0deg)';
-  }
-
   function updateSectionBadge(field) {
     const count = activeFilters[field].size;
     const badge = document.getElementById('fcount-' + field);
@@ -2464,15 +2437,6 @@
       badge.textContent = '';
       badge.classList.add('hidden');
     }
-  }
-
-  function toggleReviewed(id) {
-    const trades = dbLoad();
-    const idx = trades.findIndex(t => t.id === id);
-    if (idx === -1) return;
-    trades[idx].reviewed = !trades[idx].reviewed;
-    dbSave(trades);
-    renderHistory();
   }
 
   function deleteTrade(id) {
@@ -2570,7 +2534,8 @@
         ${label}
       </button>`
     ).join('');
-    const saBlockHidden = t.result === 'stoploss' ? '' : 'hidden';
+    const ptBlockHidden = t.status === 'entry' ? '' : 'hidden';
+    const saBlockHidden = (t.status === 'entry' && t.result === 'stoploss') ? '' : 'hidden';
     const stoplossAvoidableBtns = [['yes','🔧 排除可能'],['no','🛡️ 想定内']].map(([v, label]) =>
       `<button type="button" data-group="stoplossavoidable" data-prefix="e" data-value="${v}"
         onclick="selectToggle('stoplossavoidable','${v}','e')"
@@ -2657,7 +2622,7 @@
           <div class="grid grid-cols-2 gap-2">${maShapeBtns}</div>
           <input type="hidden" id="e-mashape" value="${t.maShape || ''}">
         </div>
-        <div class="deposit-hide">
+        <div id="e-protiming-block" class="${ptBlockHidden} deposit-hide">
           <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#818cf8">🎯 プロと同じタイミングでエントリーできたか</label>
           <div class="grid grid-cols-2 gap-2">${proTimingBtns}</div>
           <input type="hidden" id="e-protiming" value="${t.proTiming || ''}">
@@ -2817,9 +2782,9 @@
           : null,
         breakevenTouch: document.getElementById('e-breakeventouch').value || null,
         maShape: document.getElementById('e-mashape').value || null,
-        maConvDuration: parseInt(document.getElementById('e-ma-conv').value) || null,
-        proTiming: document.getElementById('e-protiming').value || null,
-        stoplossAvoidable: document.getElementById('e-stoplossavoidable').value || null,
+        maConvDuration: parseFloat(document.getElementById('e-ma-conv').value) || null,
+        proTiming: newStatus === 'entry' ? (document.getElementById('e-protiming').value || null) : null,
+        stoplossAvoidable: (newStatus === 'entry' && document.getElementById('e-result').value === 'stoploss') ? (document.getElementById('e-stoplossavoidable').value || null) : null,
         reason:    document.getElementById('e-reason').value.trim(),
         images:    { m15: eImgs.m15, h1: eImgs.h1, h4: eImgs.h4, d1: eImgs.d1, others: [...eImgs.others] },
         tags:      [...eTags],
@@ -3017,7 +2982,6 @@
 
     renderProfitChart(entries);
     renderWinrateChart(wins, losses, draws, seg.total);
-    renderBreakdowns(trades);
     renderOpportunityStats(trades);
     renderChanceConversionStats();
     renderSkipAnalysis(trades);
@@ -3108,157 +3072,6 @@
 
   // Format helpers for breakdown cards
   function fmtSigned(n)  { const r = Math.round(n); return (r >= 0 ? '+' : '') + r.toLocaleString(); }
-  function fmtPF(pf)     { if (pf === null) return '—'; if (pf === Infinity) return '∞'; return pf.toFixed(2); }
-  function labelForKey(key, raw) {
-    if (raw === '' || raw == null) return '(未設定)';
-    if (key === 'method') return methodLabel(raw);
-    return raw;
-  }
-
-  // ============================================================
-  // BREAKDOWN WITH FILTERS
-  // ============================================================
-  function renderBreakdowns(allTrades) {
-    if (!allTrades) allTrades = tradesForPeriod(statsPeriod);
-
-    // — 手法別 —
-    {
-      const mf = document.getElementById('bd-method-filter')?.value || '';
-      let base = allTrades.filter(t => t.status === 'entry');
-      if (mf) base = base.filter(t => (t.method || '') === mf);
-      renderBreakdownV2('method-breakdown', base, 'method');
-    }
-
-    // — 時間足別 —
-    {
-      const tf = document.getElementById('bd-tf-time')?.value || '';
-      const sf = document.getElementById('bd-tf-status')?.value || '';
-      let base = sf ? allTrades.filter(t => t.status === sf)
-                    : allTrades.filter(t => t.status === 'entry');
-      if (tf) base = base.filter(t => t.timeframe === tf);
-      renderBreakdownV2('timeframe-breakdown', base, 'timeframe');
-    }
-
-    // — メイン通貨別 —
-    {
-      const sf = document.getElementById('bd-main-status')?.value || '';
-      const base = sf ? allTrades.filter(t => t.status === sf)
-                      : allTrades.filter(t => t.status === 'entry');
-      renderBreakdownV2('mainpair-breakdown', base, 'pairMain');
-    }
-
-    // — サブ通貨別 —
-    {
-      const sf = document.getElementById('bd-sub-status')?.value || '';
-      const base = sf ? allTrades.filter(t => t.status === sf)
-                      : allTrades.filter(t => t.status === 'entry');
-      renderBreakdownV2('subpair-breakdown', base, 'pairSub');
-    }
-  }
-
-  function renderBreakdownV2(containerId, entries, key) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    if (entries.length === 0) { el.innerHTML = '<p class="text-slate-400 text-sm">データがありません</p>'; return; }
-
-    // Group trades by key value
-    const groups = {};
-    entries.forEach(t => {
-      let k = t[key];
-      if (key === 'pairMain') k = t.pairMain || t.pair || '';
-      if (k === undefined || k === null) k = '';
-      if (!groups[k]) groups[k] = [];
-      groups[k].push(t);
-    });
-
-    // For subpair, drop empty (no sub) entries
-    if (key === 'pairSub') delete groups[''];
-
-    const segs = Object.entries(groups)
-      .map(([name, ts]) => ({ name, stats: computeSegStats(ts) }))
-      .sort((a, b) => b.stats.total - a.stats.total);
-
-    if (segs.length === 0) { el.innerHTML = '<p class="text-slate-400 text-sm">データがありません</p>'; return; }
-
-    el.innerHTML = segs.map(({ name, stats: s }) => {
-      const pnlColor = s.sumPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
-      const barW     = s.winrate;
-      return `
-      <div class="py-3 border-b border-slate-50 last:border-0">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-sm font-semibold" style="color:#cbd5e1">${esc(labelForKey(key, name))}</span>
-          <span class="text-sm font-bold ${pnlColor}">${fmtSigned(s.sumPnl)}円</span>
-        </div>
-        <div class="flex items-center gap-2 mb-2">
-          <div class="flex-1 rounded-full h-1.5" style="background:#2a2a3e">
-            <div class="h-1.5 rounded-full" style="width:${barW}%;background:#3b82f6"></div>
-          </div>
-          <span class="text-xs" style="color:#94a3b8">${s.total}回・勝率${s.winrate}%</span>
-        </div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" style="color:#94a3b8">
-          <div>平均 <span style="color:#cbd5e1">${fmtSigned(s.avgPnl)}</span></div>
-          <div>期待値 <span style="color:#cbd5e1">${fmtSigned(s.ev)}円/回</span></div>
-          <div>Best <span class="text-emerald-400">${fmtSigned(s.best)}</span></div>
-          <div>Worst <span class="text-red-400">${fmtSigned(s.worst)}</span></div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // Status breakdown — special: shows entry/through/miss counts + ratio,
-  // and winrate for entries only
-  function renderStatusBreakdown(allTrades) {
-    const el = document.getElementById('status-breakdown');
-    if (!el) return;
-    if (allTrades.length === 0) { el.innerHTML = '<p class="text-slate-400 text-sm">データがありません</p>'; return; }
-
-    const total = allTrades.length;
-    const groups = { entry: [], through: [], miss: [] };
-    allTrades.forEach(t => {
-      if (groups[t.status]) groups[t.status].push(t);
-    });
-
-    const rows = [
-      { key: 'entry',   label: 'エントリー', color: '#60a5fa' },
-      { key: 'through', label: 'スルー',     color: '#facc15' },
-      { key: 'miss',    label: 'ミス',       color: '#fb923c' },
-    ];
-
-    el.innerHTML = rows.map(r => {
-      const ts    = groups[r.key];
-      const count = ts.length;
-      const pct   = Math.round(count / total * 100);
-      const barW  = pct;
-      const isEntry = r.key === 'entry';
-      const stats = isEntry && count > 0 ? computeSegStats(ts) : null;
-
-      let extraHtml = '';
-      if (stats) {
-        const pnlColor = stats.sumPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
-        extraHtml = `
-          <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-2" style="color:#94a3b8">
-            <div>勝率 <span style="color:#cbd5e1">${stats.winrate}%</span></div>
-            <div>期待値 <span style="color:#cbd5e1">${fmtSigned(stats.ev)}円/回</span></div>
-            <div class="col-span-2">合計損益 <span class="${pnlColor}">${fmtSigned(stats.sumPnl)}円</span></div>
-          </div>`;
-      }
-
-      return `
-      <div class="py-3 border-b border-slate-50 last:border-0">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-sm font-semibold" style="color:#cbd5e1">${r.label}</span>
-          <span class="text-sm font-bold" style="color:${r.color}">${count}回</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="flex-1 rounded-full h-1.5" style="background:#2a2a3e">
-            <div class="h-1.5 rounded-full" style="width:${barW}%;background:${r.color}"></div>
-          </div>
-          <span class="text-xs" style="color:#94a3b8">${pct}%</span>
-        </div>
-        ${extraHtml}
-      </div>`;
-    }).join('');
-  }
 
   // ============================================================
   // OPPORTUNITY STATS — エントリーチャンス集計
@@ -3376,8 +3189,6 @@
     const skips  = trades.filter(t => isSkipStatus(t.status));
     renderSkipTradeList(skips);
     renderSkipByReason(skips);
-    renderEntryVsSkip(trades);
-
     renderVirtualStatsTile(skips);
     renderSkipTradeSim();
   }
@@ -3409,7 +3220,7 @@
 
     // 集計行（勝率など）
     const withResult = sorted.filter(t => RESULT_MAP[t.result]);
-    const wins       = withResult.filter(t => RESULT_MAP[t.result]?.color !== '#64748b' && RESULT_MAP[t.result]?.color !== '#ef4444' && t.result !== 'breakeven' && t.result !== 'stoploss').length;
+    const wins       = withResult.filter(t => SKIP_MULT[t.result] > 0).length;
     const winrate    = withResult.length > 0 ? Math.round(wins / withResult.length * 100) : null;
     const wrBadge    = winrate !== null
       ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${winrate >= 50 ? '#34d39920' : '#f8717120'};color:${winrate >= 50 ? '#34d399' : '#f87171'}">勝率 ${winrate}%</span>`
@@ -3437,39 +3248,13 @@
     } else {
       renderSkipTradeList(skips);
       renderSkipByReason(skips);
-      renderEntryVsSkip(trades);
-  
     }
   }
 
   // リスク額ベースの期待値シミュレーター（結果別内訳付き）
 
-  // スルートレードの「もし入っていたら」損益を計算するヘルパー
+  // スルートレードの「もし入っていたら」倍率テーブル
   const SKIP_MULT = { max: 3, big: 2, reg: 1, small: 0.5, breakeven: 0, stoploss: -1 };
-  function calcSkipSimPnl(t, risk) {
-    const mult = SKIP_MULT[t.result];
-    return mult !== undefined ? risk * mult : null;
-  }
-  function computeSkipSimStats(skips, risk) {
-    let total = 0, wins = 0, losses = 0, sumPnl = 0, best = -Infinity, worst = Infinity;
-    skips.forEach(t => {
-      const pnl = calcSkipSimPnl(t, risk);
-      if (pnl === null) return;
-      total++;
-      sumPnl += pnl;
-      if (pnl > best)  best  = pnl;
-      if (pnl < worst) worst = pnl;
-      if (pnl > 0) wins++;
-      else if (pnl < 0) losses++;
-    });
-    if (total === 0) return null;
-    const winrate = Math.round(wins / total * 100);
-    const avgPnl  = sumPnl / total;
-    const ev      = avgPnl;
-    return { total, wins, losses, sumPnl, winrate, avgPnl, ev,
-             best: best === -Infinity ? 0 : best,
-             worst: worst === Infinity ? 0 : worst };
-  }
 
   // スタック方式（仮想シミュと同じロジック）でスルー理由別を集計
   function computeSkipStackStats(trades, risk) {
@@ -3510,44 +3295,6 @@
 
   function getSkipRisk() {
     return parseFloat(document.getElementById('skip-sim-risk')?.value) || 0;
-  }
-
-  function renderOpportunityLoss(skips) {
-    const el = document.getElementById('skip-opportunity-loss');
-    if (!el) return;
-    if (skips.length === 0) {
-      el.innerHTML = '<p class="text-slate-400 text-sm">スルートレードがありません</p>';
-      return;
-    }
-    const risk = getSkipRisk();
-    if (risk <= 0) {
-      el.innerHTML = '<p class="text-[11px]" style="color:#475569">↑ リスク額を入力すると機会損失を算出します</p>';
-      return;
-    }
-    const s = computeSkipSimStats(skips, risk);
-    if (!s) {
-      el.innerHTML = '<p class="text-[11px]" style="color:#475569">結果が未入力のスルートレードのみです</p>';
-      return;
-    }
-    const sumColor = s.sumPnl >= 0 ? '#10b981' : '#ef4444';
-    const sumHint  = s.sumPnl >= 0 ? '機会損失' : 'スキップ正解';
-    el.innerHTML = `
-      <div class="rounded-xl p-4" style="background:#1e293b;border:1px solid #334155">
-        <div class="flex items-baseline justify-between mb-2">
-          <span class="text-xs uppercase tracking-wide" style="color:#94a3b8">📊 仮想損益の累計（${risk.toLocaleString()}円/回 基準）</span>
-          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background:${sumColor}20;color:${sumColor};border:1px solid ${sumColor}40">${sumHint}</span>
-        </div>
-        <div class="flex items-end justify-between mb-2">
-          <span class="text-2xl font-bold" style="color:${sumColor}">${fmtSigned(s.sumPnl)}円</span>
-          <div class="text-right">
-            <div class="text-sm font-bold" style="color:#cbd5e1">勝率 ${s.winrate}%</div>
-            <div class="text-xs" style="color:#94a3b8">${s.wins}勝${s.losses}敗 / ${s.total}回</div>
-          </div>
-        </div>
-        <div class="text-xs" style="color:#94a3b8">
-          期待値 <span style="color:#a78bfa;font-weight:600">${fmtSigned(s.ev)}円/回</span>
-        </div>
-      </div>`;
   }
 
   function renderSkipByReason(skips) {
@@ -3648,44 +3395,6 @@
     }).join('');
   }
 
-  function renderEntryVsSkip(trades) {
-    const el = document.getElementById('skip-vs-entry');
-    if (!el) return;
-    const entries = trades.filter(t => t.status === 'entry');
-    const skips   = trades.filter(t => isSkipStatus(t.status));
-    if (entries.length === 0 && skips.length === 0) {
-      el.innerHTML = '<p class="text-slate-400 text-sm">データがありません</p>';
-      return;
-    }
-    const e = computeSegStats(entries);
-    const s = computeSegStats(skips);
-
-    const rows = [
-      { label: '件数',     eVal: e.total + '回',        sVal: s.total + '回',        highlight: false },
-      { label: '勝率',     eVal: e.winrate + '%',       sVal: s.winrate + '%',       highlight: s.total > 0 && e.total > 0 && s.winrate > e.winrate },
-      { label: '期待値',   eVal: fmtSigned(e.ev) + '円', sVal: fmtSigned(s.ev) + '円', highlight: s.total > 0 && e.total > 0 && s.ev > e.ev },
-      { label: '合計損益', eVal: fmtSigned(e.sumPnl) + '円', sVal: fmtSigned(s.sumPnl) + '円', highlight: false },
-    ];
-    el.innerHTML = `
-      <div class="rounded-xl overflow-hidden" style="border:1px solid #334155">
-        <div class="grid grid-cols-3 text-xs font-bold py-2 px-3" style="background:#1e293b;color:#94a3b8">
-          <div></div>
-          <div class="text-right">実エントリー</div>
-          <div class="text-right">見送り</div>
-        </div>
-        ${rows.map(r => `
-          <div class="grid grid-cols-3 text-xs py-2 px-3 items-center ${r.highlight ? '' : ''}"
-               style="${r.highlight ? 'background:#3a3410;border-left:2px solid #facc15' : 'background:#0f172a'};color:#cbd5e1;border-top:1px solid #1e293b">
-            <div style="color:#94a3b8">${r.label}${r.highlight ? ' ⚠' : ''}</div>
-            <div class="text-right font-semibold">${r.eVal}</div>
-            <div class="text-right font-semibold ${r.highlight ? 'text-yellow-300' : ''}">${r.sVal}</div>
-          </div>`).join('')}
-      </div>
-      ${rows.some(r => r.highlight)
-        ? '<p class="text-[10px] mt-2" style="color:#facc15">⚠ = 見送り側が実エントリーを上回っています。積極的にエントリーを検討してください。</p>'
-        : ''}`;
-  }
-
   // ============================================================
   // CALENDAR
   // ============================================================
@@ -3762,20 +3471,8 @@
   }
 
   // ============================================================
-  // チャンス出現率 & 出現率シミュレーション
+  // チャンス出現率
   // ============================================================
-
-  // resultキー → SIM_RESULT の mult を返す（PnLではなくmultベース）
-  const RESULT_MULT = { max: 3, big: 2, reg: 1, small: 0.5, breakeven: 0, stoploss: -1 };
-
-  // 1グループ分の期待値 multiplier を計算（trades に result がある前提）
-  function calcEvMult(trades) {
-    if (!trades.length) return 0;
-    let sum = 0;
-    trades.forEach(t => { sum += (RESULT_MULT[t.result] ?? 0); });
-    return sum / trades.length;
-  }
-
   function renderChanceRate() {
     const el = document.getElementById('chance-rate-display');
     if (!el) return;
@@ -3844,165 +3541,6 @@
         <div class="text-[9px] mt-1" style="color:#334155">${allDays}日 / ${totalDays}日</div>
       </div>
     </div>`;
-  }
-
-  function renderChanceSimulation() {
-    const el = document.getElementById('chance-sim-display');
-    if (!el) return;
-
-    const risk = parseFloat(document.getElementById('chance-sim-risk')?.value) || 0;
-
-    // 日付指定 → 日数計算
-    const simFromVal = document.getElementById('chance-sim-from')?.value;
-    const simToVal   = document.getElementById('chance-sim-to')?.value;
-    let simDays = 30;
-    if (simFromVal && simToVal) {
-      const d1 = new Date(simFromVal + 'T00:00:00');
-      const d2 = new Date(simToVal   + 'T23:59:59');
-      simDays = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
-    } else if (simFromVal) {
-      const d1 = new Date(simFromVal + 'T00:00:00');
-      simDays = Math.max(1, Math.round((new Date() - d1) / 86400000) + 1);
-    } else if (simToVal) {
-      simDays = 30;
-    }
-    const daysDisplayEl = document.getElementById('chance-sim-days-display');
-    if (daysDisplayEl) {
-      if (simFromVal || simToVal) {
-        daysDisplayEl.textContent = `シミュレーション期間: ${simDays}日間`;
-      } else {
-        daysDisplayEl.textContent = '開始日・終了日を指定してください（未指定時は30日）';
-      }
-    }
-    const allTrades = dbLoad();
-    if (!allTrades.length) { el.innerHTML = '<p style="color:#475569;font-size:11px">データがありません</p>'; return; }
-
-    // Get same period as chance-rate
-    const fromInput = document.getElementById('chance-rate-from')?.value;
-    const toDate    = new Date(); toDate.setHours(23,59,59,999);
-    let fromDate;
-    if (fromInput) {
-      fromDate = new Date(fromInput); fromDate.setHours(0,0,0,0);
-    } else {
-      const sorted = [...allTrades].sort((a,b) => new Date(a.datetime)-new Date(b.datetime));
-      fromDate = new Date(sorted[0].datetime); fromDate.setHours(0,0,0,0);
-    }
-    const totalDays = Math.max(1, Math.round((toDate - fromDate) / 86400000) + 1);
-
-    const inRange = allTrades.filter(t => {
-      const d = new Date(t.datetime);
-      return d >= fromDate && d <= toDate;
-    });
-
-    // Entry-only stats
-    const entryDaySet = new Set();
-    const allDaySet   = new Set();
-    const entries = inRange.filter(t => t.status === 'entry');
-    const allChance = inRange; // all statuses
-    inRange.forEach(t => {
-      const key = new Date(t.datetime).toDateString();
-      allDaySet.add(key);
-      if (t.status === 'entry') entryDaySet.add(key);
-    });
-
-    const entryRate = entryDaySet.size / totalDays;
-    const allRate   = allDaySet.size   / totalDays;
-
-    // Expected chances in simDays
-    const expEntry = simDays * entryRate;
-    const expAll   = simDays * allRate;
-
-    // EV per trade (mult based)
-    const evEntry = calcEvMult(entries);
-    const evAll   = calcEvMult(allChance);
-
-    // Total EV in yen
-    const totalEvEntry = expEntry * evEntry * risk;
-    const totalEvAll   = expAll   * evAll   * risk;
-
-    // Win rates
-    const entryWithResult = entries.filter(t => t.result);
-    const allWithResult   = allChance.filter(t => t.result);
-    const winRateEntry = entryWithResult.length
-      ? Math.round(entryWithResult.filter(t => RESULT_MULT[t.result] > 0).length / entryWithResult.length * 100) : 0;
-    const winRateAll   = allWithResult.length
-      ? Math.round(allWithResult.filter(t => RESULT_MULT[t.result] > 0).length / allWithResult.length * 100) : 0;
-
-    const fmtYen  = v => (v >= 0 ? '+' : '') + Math.round(v).toLocaleString() + '円';
-    const fmtN    = n => n.toFixed(1);
-    const evColor = v => v >= 0 ? '#34d399' : '#f87171';
-
-    const colHtml = (label, borderColor, textColor, expN, wr, evPerTrade, totalEv) => `
-    <div class="rounded-xl p-3" style="background:#1e293b;border-top:2px solid ${borderColor}">
-      <div class="text-[9px] font-bold uppercase tracking-wide mb-2" style="color:${textColor}">${label}</div>
-      <div class="space-y-1.5">
-        <div class="flex justify-between text-xs">
-          <span style="color:#475569">期待チャンス</span>
-          <span style="color:#cbd5e1;font-weight:700">${fmtN(expN)}回 / ${simDays}日</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span style="color:#475569">勝率</span>
-          <span style="color:#cbd5e1;font-weight:700">${wr}%</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span style="color:#475569">期待値/回</span>
-          <span style="font-weight:700;color:${evColor(evPerTrade * risk)}">${fmtYen(evPerTrade * risk)}</span>
-        </div>
-        <div class="pt-1.5 mt-1" style="border-top:1px solid #334155">
-          <div class="text-[9px] uppercase tracking-wide mb-0.5" style="color:#475569">総期待値</div>
-          <div class="text-xl font-black" style="color:${evColor(totalEv)}">${fmtYen(totalEv)}</div>
-        </div>
-      </div>
-    </div>`;
-
-    el.innerHTML = `
-    <div class="grid grid-cols-2 gap-2">
-      ${colHtml('エントリーのみ', '#38bdf8', '#7dd3fc', expEntry, winRateEntry, evEntry, totalEvEntry)}
-      ${colHtml('全チャンス含む',  '#a78bfa', '#c4b5fd', expAll,   winRateAll,   evAll,   totalEvAll)}
-    </div>`;
-  }
-
-  // ============================================================
-  // SUMMARY
-  // ============================================================
-  function renderSummary() {
-    const trades  = dbLoad();
-    const entries = trades.filter(t => t.status === 'entry');
-    const wins    = entries.filter(t => t.result === 'win');
-    const losses  = entries.filter(t => t.result === 'loss');
-    const totalPnl = entries.reduce((s, t) => s + t.pnl, 0);
-    const avgPnl   = entries.length > 0 ? totalPnl / entries.length : 0;
-    const winrate  = entries.length > 0 ? Math.round(wins.length / entries.length * 100) : 0;
-
-    const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
-    const grossLoss   = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
-    const pf = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? '∞' : '—';
-
-    const maxWin  = entries.length > 0 ? Math.max(...entries.map(t => t.pnl)) : 0;
-    const maxLoss = entries.length > 0 ? Math.min(...entries.map(t => t.pnl)) : 0;
-
-    // Streak calculation
-    const sorted = [...entries].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-    let maxStreakW = 0, maxStreakL = 0, curW = 0, curL = 0;
-    sorted.forEach(t => {
-      if (t.result === 'win')  { curW++; curL = 0; maxStreakW = Math.max(maxStreakW, curW); }
-      else if (t.result === 'loss') { curL++; curW = 0; maxStreakL = Math.max(maxStreakL, curL); }
-      else { curW = 0; curL = 0; }
-    });
-
-    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    setEl('sum-total-trades', trades.length);
-    setEl('sum-total-pnl',    (totalPnl >= 0 ? '+' : '') + totalPnl.toLocaleString());
-    setEl('sum-winrate',      winrate + '%');
-    setEl('sum-avg-pnl',      (avgPnl >= 0 ? '+' : '') + avgPnl.toFixed(1));
-    setEl('sum-entry-count',  trades.filter(t => t.status === 'entry').length + '回');
-    setEl('sum-through-count',trades.filter(t => t.status === 'through').length + '回');
-    setEl('sum-miss-count',   trades.filter(t => t.status === 'miss').length + '回');
-    setEl('sum-max-win',      '+' + maxWin.toLocaleString());
-    setEl('sum-max-loss',     maxLoss.toLocaleString());
-    setEl('sum-pf',           pf);
-    setEl('sum-streak-win',   maxStreakW + '連勝');
-    setEl('sum-streak-loss',  maxStreakL + '連敗');
   }
 
   // ============================================================
@@ -4141,7 +3679,7 @@
       const delta   = finalCap - initial;
       const simWins = setRows.filter(r => SIM_RESULT[r.key]?.mult > 0).length;
       const simWr   = Math.round(simWins / setRows.length * 100);
-      if (pnlEl) { pnlEl.textContent = (delta >= 0 ? '+' : '') + fmt(delta) + '円'; pnlEl.className = 'text-base font-black leading-none ' + (delta >= 0 ? 'text-purple-600' : 'text-red-500'); }
+      if (pnlEl) { pnlEl.textContent = (delta >= 0 ? '+' : '') + fmt(delta) + '円'; pnlEl.className = 'text-sm font-black leading-none ' + (delta >= 0 ? 'text-purple-600' : 'text-red-500'); }
       if (wrEl)  { wrEl.textContent  = simWr + '%'; wrEl.className = 'text-sm font-black ' + (simWr >= 50 ? 'text-purple-600' : 'text-red-500'); }
       if (noteEl) noteEl.classList.add('hidden');
     }
@@ -4185,6 +3723,11 @@
   function _saveMemoRecord(slots, localOnly) {
     const all = dbLoadRaw();
     const idx = all.findIndex(t => t.id === CHANCE_MEMO_ID && t._type === 'memo');
+    // 修正A: 中身が変わっていない保存は完全スキップ
+    // （空メモや同一内容の push が他デバイスのメモを上書きするのを防ぐ）
+    const isEmpty = slots.every(s => !s.pair && !s.method && !s.timeframe && !s.reason);
+    if (idx < 0 && isEmpty) return;
+    if (idx >= 0 && JSON.stringify(all[idx].slots) === JSON.stringify(slots) && !all[idx].deleted) return;
     const now = new Date().toISOString();
     const rec = {
       id: CHANCE_MEMO_ID,
@@ -4496,21 +4039,6 @@
   function statsSetCapital(val) {
     const el = document.getElementById('cap-initial');
     if (el) { el.value = val; renderCapitalChart(); }
-  }
-
-  let _bdTab = 'method';
-  function switchBreakdownTab(tab) {
-    _bdTab = tab;
-    ['method','timeframe','main','sub','maconv'].forEach(t => {
-      const pane = document.getElementById('bdpane-' + t);
-      const btn  = document.getElementById('bdtab-'  + t);
-      if (!pane || !btn) return;
-      const active = t === tab;
-      pane.classList.toggle('hidden', !active);
-      btn.classList.toggle('active-tab',   active);
-      btn.classList.toggle('inactive-tab', !active);
-    });
-    renderBreakdowns();
   }
 
   let _chartTab = 'profit';
@@ -4907,11 +4435,12 @@
   }
 
   // ============================================================
-  // IMPORT / EXPORT
+  // EXPORT
   // ============================================================
   function exportData() {
-    const trades = dbLoad();
-    const json   = JSON.stringify({ version: 2, exportDate: new Date().toISOString(), trades }, null, 2);
+    // バックアップ目的なので raw を出力（チャンス履歴・メモ・削除墓標も含む完全形）
+    const trades = dbLoadRaw();
+    const json   = JSON.stringify({ version: 3, exportDate: new Date().toISOString(), trades }, null, 2);
     const blob   = new Blob([json], { type: 'application/json' });
     const url    = URL.createObjectURL(blob);
     const a      = document.createElement('a');
@@ -4923,61 +4452,20 @@
     showToast('✓ エクスポートしました');
   }
 
-  function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target.result);
-        const imported = Array.isArray(parsed) ? parsed : (parsed.trades || []);
-        if (!Array.isArray(imported) || imported.length === 0) {
-          showToast('⚠ 有効なデータが見つかりません');
-          return;
-        }
-        showConfirm(
-          imported.length + '件のデータをインポートしますか？\n（重複しないものが追加されます）',
-          () => {
-            const existing = dbLoadRaw();
-            const existIds = new Set(existing.map(t => t.id));
-            const newOnes  = imported.filter(t => t.id && !existIds.has(t.id));
-            const merged   = [...existing, ...newOnes]
-              .sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-            dbSave(merged);
-            renderHistory();
-            renderSummary();
-            showToast('✓ ' + newOnes.length + '件インポートしました');
-          }
-        );
-      } catch {
-        showToast('⚠ JSONの読み込みに失敗しました');
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-  }
-
-  function importFromJSON() {
-    const text = document.getElementById('import-json-text').value.trim();
-    if (!text) {
-      showToast('⚠ JSON テキストを入力してください');
-      return;
-    }
+  // Console から実行可能: restoreFromJSON('<json文字列>') — バックアップ JSON から復元（全上書き）
+  function restoreFromJSON(text) {
     try {
-      const parsed = JSON.parse(text);
+      const parsed = typeof text === 'string' ? JSON.parse(text) : text;
       const imported = Array.isArray(parsed) ? parsed : (parsed.trades || []);
       if (!Array.isArray(imported) || imported.length === 0) {
-        showToast('⚠ 有効なデータが見つかりません');
-        return;
+        console.error('有効なデータが見つかりません'); return;
       }
-      // localStorage に直接保存（上書き）
       localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
-      sessionStorage.setItem(BACKUP_KEY, JSON.stringify(imported));
-      document.getElementById('import-json-text').value = '';
-      showToast('✓ ' + imported.length + '件インポートしました。リロード中...');
-      setTimeout(() => location.reload(), 1000);
+      try { sessionStorage.setItem(BACKUP_KEY, JSON.stringify(imported)); } catch {}
+      console.log('✅ ' + imported.length + '件復元しました。リロードします...');
+      setTimeout(() => location.reload(), 500);
     } catch (e) {
-      showToast('⚠ JSON の形式が正しくありません: ' + e.message);
+      console.error('JSON の形式が正しくありません:', e.message);
     }
   }
 
@@ -5057,7 +4545,7 @@
   // ============================================================
   function exportCSV() {
     const trades = dbLoad();
-    const headers = ['日時','エグジット日時','ステータス','手法','メイン通貨','サブ通貨','時間足','結果','損益(円)','見送り理由','建値タッチ','MAシェイプ','MA収束期間(h)','タグ','メモ'];
+    const headers = ['日時','エグジット日時','ステータス','手法','メイン通貨','サブ通貨','時間足','結果','損益(円)','見送り理由','建値タッチ','MAシェイプ','MA収束期間(h)','プロ同期','損切排除可能','タグ','メモ'];
     const methodLabel = { '1':'乖離埋め', '2':'3波狙い', '3':'その他' };
     const rows = trades.map(t => [
       t.datetime        || '',
@@ -5071,8 +4559,10 @@
       t.pnl ?? '',
       t.skipReason      || '',
       t.breakevenTouch  || '',
-      t.mashape         || '',
-      t.maConv          ?? '',
+      t.maShape         || '',
+      t.maConvDuration  ?? '',
+      t.proTiming === 'match' ? 'できた' : t.proTiming === 'miss' ? 'できなかった' : '',
+      t.stoplossAvoidable === 'yes' ? '排除可能' : t.stoplossAvoidable === 'no' ? '想定内' : '',
       (t.tags || []).join('|'),
       (t.reason || '').replace(/\n/g, ' '),
     ]);
@@ -5095,7 +4585,6 @@
     showConfirm('全データを削除しますか？\nこの操作は取り消せません。', () => {
       localStorage.removeItem(STORAGE_KEY);
       renderHistory();
-      renderSummary();
       showToast('全データを削除しました');
     });
   }
@@ -5130,7 +4619,7 @@
   function resultLabel(r) {
     return { reg: 'REG', big: 'BIG', max: 'MAX', small: '微益', breakeven: '建値決済', stoploss: '損切' }[r] || r;
   }
-  function statusLabel(s) { return { entry: 'エントリー', through: 'スルー', miss: 'ミス', deposit: '💰 入金' }[s] || s; }
+  function statusLabel(s) { return { entry: 'エントリー', through: 'スルー', miss: 'ミス', deposit: '💰 入出金' }[s] || s; }
 
   // Skip reason definitions
   const SKIP_REASONS = {
@@ -5154,11 +4643,6 @@
     }[r] || 'bg-slate-100 text-slate-600';
   }
 
-  function fmtTime(str) {
-    if (!str) return '';
-    try { return new Date(str).toLocaleString('ja-JP', { hour: '2-digit', minute: '2-digit' }); }
-    catch { return str; }
-  }
   function statusBadge(s) {
     return { entry: 'bg-blue-100 text-blue-700', through: 'bg-yellow-100 text-yellow-700', miss: 'bg-orange-100 text-orange-700', deposit: 'bg-emerald-100 text-emerald-700' }[s] || 'bg-slate-100 text-slate-600';
   }
@@ -5725,82 +5209,7 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function showQRModal() {
-    const data = dbLoadRaw();
-    if (!data || data.length === 0) {
-      showToast('⚠ データがありません');
-      return;
-    }
-    const jsonStr = JSON.stringify(data);
-    const modal = document.getElementById('qr-modal');
-    const container = document.getElementById('qr-code-container');
-    container.innerHTML = '';
-
-    try {
-      const encoded = encodeURIComponent(jsonStr);
-      const qrUrl = 'https://chart.googleapis.com/chart?chs=256x256&chld=H|0&cht=qr&chl=' + encoded;
-      const img = document.createElement('img');
-      img.src = qrUrl;
-      img.style.maxWidth = '100%';
-      img.style.borderRadius = '8px';
-      img.style.backgroundColor = '#fff';
-      img.style.padding = '8px';
-      container.appendChild(img);
-      modal.style.display = 'flex';
-      showToast('✓ QR コードを生成しました');
-    } catch (err) {
-      showToast('⚠ QR コード生成エラー: ' + err.message);
-    }
-  }
-
-  function closeQRModal() {
-    document.getElementById('qr-modal').style.display = 'none';
-  }
-
-  document.getElementById('qr-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'qr-modal') closeQRModal();
-  });
-
-  function copyQRDataToClipboard() {
-    const data = dbLoadRaw();
-    if (!data || data.length === 0) {
-      showToast('⚠ データがありません');
-      return;
-    }
-    const jsonStr = JSON.stringify(data);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(jsonStr).then(() => {
-        showToast('✓ JSON をコピーしました');
-        closeQRModal();
-      }).catch(err => {
-        console.error('Copy failed:', err);
-        showToast('⚠ コピーに失敗しました');
-      });
-    } else {
-      showToast('⚠ ブラウザがコピー機能をサポートしていません');
-    }
-  }
   </script>
-
-  <!-- QR Code Modal -->
-  <div id="qr-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style="display: none;">
-    <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
-      <h2 class="text-lg font-bold text-slate-800 mb-4">📱 QR コード（iPhone転送用）</h2>
-      <div id="qr-code-container" class="flex justify-center mb-6"></div>
-      <p class="text-xs text-slate-600 mb-4 text-center">
-        ✅ iPhone のカメラアプリで、このQRコードをスキャンしてください<br>
-        または、QRコードアプリで読み込んでください
-      </p>
-      <div class="space-y-2">
-        <button onclick="copyQRDataToClipboard()" class="w-full p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all text-sm font-semibold">
-          📋 JSON をコピー（代替手段）
-        </button>
-        <button onclick="closeQRModal()" class="w-full p-3 bg-slate-200 text-slate-800 rounded-xl hover:bg-slate-300 active:scale-[0.98] transition-all text-sm font-semibold">
-          閉じる
-        </button>
-      </div>
-    </div>
-  </div>
 
 </body>
 </html>
