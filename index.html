@@ -825,6 +825,9 @@
               <div id="stat-combined-winrate" class="text-sm font-bold text-blue-500">—</div>
               <div class="text-[9px] text-slate-400">合算</div>
             </div>
+            <div id="stat-breakeven-row" class="hidden mt-1.5 text-center">
+              <span id="stat-breakeven-count" class="text-[10px] font-semibold text-slate-400">—</span>
+            </div>
             <div class="stat-virtual-row hidden mt-2 pt-2 text-center" style="border-top:1px dashed #e9d5ff">
               <div id="stat-virtual-winrate" class="text-sm font-black text-purple-600">—</div>
               <div class="text-[9px] text-purple-400">仮想</div>
@@ -2886,7 +2889,9 @@
       else if (p < 0) { losses++;     grossLoss   += -p; }
       else            { breakevens++; }
     });
-    const winrate = Math.round(wins / total * 100);
+    // 勝率は建値を分母から除外（勝ち/(勝ち+負け)）。建値はリスク管理成功であり負けではない
+    const decided = wins + losses;
+    const winrate = decided > 0 ? Math.round(wins / decided * 100) : null;
     const avgPnl  = sumPnl / total;
     const avgWin  = wins   > 0 ? grossProfit / wins   : 0;
     const avgLoss = losses > 0 ? grossLoss   / losses : 0;
@@ -2906,8 +2911,8 @@
     const losses  = seg.losses;
     const draws   = seg.breakevens;
 
-    // 勝率 tile
-    document.getElementById('stat-winrate').textContent = seg.total > 0 ? seg.winrate + '%' : '—';
+    // 勝率 tile（建値は分母から除外）
+    document.getElementById('stat-winrate').textContent = seg.winrate !== null ? seg.winrate + '%' : '—';
     // 合計損益 tile
     const statTotalEl = document.getElementById('stat-total');
     statTotalEl.textContent = seg.total > 0 ? (seg.sumPnl >= 0 ? '+' : '') + Math.round(seg.sumPnl).toLocaleString() + '円' : '—';
@@ -2959,23 +2964,39 @@
     const skipCountEl = document.getElementById('stat-skip-count');
     if (skipCountEl) skipCountEl.textContent = skips.length;
 
-    // スルー勝率（SKIP_MULTで判定）
+    // スルー勝率（SKIP_MULTで判定・建値は分母から除外）
     const skipWithResult = skips.filter(t => SKIP_MULT[t.result] !== undefined);
-    const skipWins = skipWithResult.filter(t => SKIP_MULT[t.result] > 0).length;
-    const skipWinrateVal = skipWithResult.length > 0 ? Math.round(skipWins / skipWithResult.length * 100) : null;
+    const skipDecided = skipWithResult.filter(t => t.result !== 'breakeven');
+    const skipWins = skipDecided.filter(t => SKIP_MULT[t.result] > 0).length;
+    const skipWinrateVal = skipDecided.length > 0 ? Math.round(skipWins / skipDecided.length * 100) : null;
     const skipWinrateEl = document.getElementById('stat-skip-winrate');
     if (skipWinrateEl) skipWinrateEl.textContent = skipWinrateVal !== null ? skipWinrateVal + '%' : '—';
 
-    // 合算勝率
-    const combinedTotal = entries.length + skipWithResult.length;
+    // 合算勝率（建値を除いた「決着」件数のみで計算）
+    const combinedDecided = seg.wins + seg.losses + skipDecided.length;
     const combinedWins = seg.wins + skipWins;
-    const combinedWinrate = combinedTotal > 0 ? Math.round(combinedWins / combinedTotal * 100) : null;
+    const combinedWinrate = combinedDecided > 0 ? Math.round(combinedWins / combinedDecided * 100) : null;
     const combinedWinrateEl = document.getElementById('stat-combined-winrate');
     if (combinedWinrateEl) combinedWinrateEl.textContent = combinedWinrate !== null ? combinedWinrate + '%' : '—';
 
-    // 合算取引数
+    // 合算取引数（件数表示は建値も含めた実件数のまま）
+    const combinedTotal = entries.length + skipWithResult.length;
     const combinedCountEl = document.getElementById('stat-combined-count');
     if (combinedCountEl) combinedCountEl.textContent = combinedTotal > 0 ? combinedTotal : '—';
+
+    // 建値件数（勝率には含めない独立表示。エントリー＋スルーの建値決済数）
+    const skipBreakevens = skipWithResult.filter(t => t.result === 'breakeven').length;
+    const totalBreakevens = seg.breakevens + skipBreakevens;
+    const beRow = document.getElementById('stat-breakeven-row');
+    const beCountEl = document.getElementById('stat-breakeven-count');
+    if (beRow && beCountEl) {
+      if (totalBreakevens > 0) {
+        beCountEl.textContent = `建値 ${totalBreakevens}回（勝率には含まず）`;
+        beRow.classList.remove('hidden');
+      } else {
+        beRow.classList.add('hidden');
+      }
+    }
 
     // 仮想行を最新データで更新（表示状態は維持）
     renderVirtualStatsTile(skips);
@@ -3153,7 +3174,7 @@
       <div class="pt-3 mb-2" style="border-top:1px solid #1e293b">
         <div class="flex items-center justify-between mb-2">
           <span class="text-[10px] font-bold uppercase tracking-wide" style="color:#94a3b8">エントリー結果</span>
-          ${entryStats.total > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${entryStats.winrate >= 50 ? '#34d39920' : '#f8717120'};color:${entryStats.winrate >= 50 ? '#34d399' : '#f87171'}">勝率 ${entryStats.winrate}%</span>` : ''}
+          ${entryStats.winrate !== null ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${entryStats.winrate >= 50 ? '#34d39920' : '#f8717120'};color:${entryStats.winrate >= 50 ? '#34d399' : '#f87171'}">勝率 ${entryStats.winrate}%</span>` : ''}
         </div>
         <div class="grid gap-1.5" style="grid-template-columns:repeat(6,1fr)">${resultTiles}</div>
       </div>` : ''}
@@ -3218,10 +3239,11 @@
       </div>`;
     }).join('');
 
-    // 集計行（勝率など）
+    // 集計行（勝率など・建値は分母から除外）
     const withResult = sorted.filter(t => RESULT_MAP[t.result]);
-    const wins       = withResult.filter(t => SKIP_MULT[t.result] > 0).length;
-    const winrate    = withResult.length > 0 ? Math.round(wins / withResult.length * 100) : null;
+    const decided    = withResult.filter(t => t.result !== 'breakeven');
+    const wins       = decided.filter(t => SKIP_MULT[t.result] > 0).length;
+    const winrate    = decided.length > 0 ? Math.round(wins / decided.length * 100) : null;
     const wrBadge    = winrate !== null
       ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${winrate >= 50 ? '#34d39920' : '#f8717120'};color:${winrate >= 50 ? '#34d399' : '#f87171'}">勝率 ${winrate}%</span>`
       : '';
@@ -3289,7 +3311,9 @@
     if (total === 0) return null;
     const delta = capital - risk;
     const growthPct = ((capital / risk - 1) * 100).toFixed(1);
-    const winrate = Math.round(wins / total * 100);
+    // 勝率は建値を分母から除外（勝ち/(勝ち+負け)）
+    const decided = wins + losses;
+    const winrate = decided > 0 ? Math.round(wins / decided * 100) : null;
     return { total, wins, losses, capital, delta, growthPct, winrate, maxStreak, maxLoseStreak };
   }
 
@@ -3356,7 +3380,7 @@
         }
         const deltaColor = s.delta >= 0 ? '#10b981' : '#ef4444';
         const growthSign = s.delta >= 0 ? '+' : '';
-        const barW = s.winrate;
+        const barW = s.winrate ?? 0;
         return `
         <div class="py-3 border-b border-slate-50 last:border-0">
           <div class="flex items-center justify-between mb-1.5">
@@ -3367,7 +3391,7 @@
             <div class="flex-1 rounded-full h-1.5" style="background:#2a2a3e">
               <div class="h-1.5 rounded-full" style="width:${barW}%;background:${r.color}"></div>
             </div>
-            <span class="text-xs" style="color:#94a3b8">${s.total}回・勝率${s.winrate}%</span>
+            <span class="text-xs" style="color:#94a3b8">${s.total}回・勝率${s.winrate !== null ? s.winrate + '%' : '—'}</span>
           </div>
           <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" style="color:#94a3b8">
             <div>初期 <span style="color:#cbd5e1">${fmt(risk)}円</span></div>
@@ -3378,10 +3402,10 @@
           ${resultSquaresHtml(trades)}
         </div>`;
       } else {
-        // リスク額なし → 件数と結果分布だけ表示
-        const withResult = trades.filter(t => SKIP_MULT[t.result] !== undefined);
-        const wins = withResult.filter(t => SKIP_MULT[t.result] > 0).length;
-        const winrate = withResult.length > 0 ? Math.round(wins / withResult.length * 100) : null;
+        // リスク額なし → 件数と結果分布だけ表示（建値は勝率の分母から除外）
+        const decided = trades.filter(t => SKIP_MULT[t.result] !== undefined && t.result !== 'breakeven');
+        const wins = decided.filter(t => SKIP_MULT[t.result] > 0).length;
+        const winrate = decided.length > 0 ? Math.round(wins / decided.length * 100) : null;
         return `
         <div class="py-2.5 border-b border-slate-50 last:border-0">
           <div class="flex items-center justify-between">
@@ -3677,10 +3701,12 @@
       if (noteEl) noteEl.classList.remove('hidden');
     } else {
       const delta   = finalCap - initial;
-      const simWins = setRows.filter(r => SIM_RESULT[r.key]?.mult > 0).length;
-      const simWr   = Math.round(simWins / setRows.length * 100);
+      // 勝率は建値を分母から除外
+      const simDecided = setRows.filter(r => r.key !== 'breakeven');
+      const simWins = simDecided.filter(r => SIM_RESULT[r.key]?.mult > 0).length;
+      const simWr   = simDecided.length > 0 ? Math.round(simWins / simDecided.length * 100) : null;
       if (pnlEl) { pnlEl.textContent = (delta >= 0 ? '+' : '') + fmt(delta) + '円'; pnlEl.className = 'text-sm font-black leading-none ' + (delta >= 0 ? 'text-purple-600' : 'text-red-500'); }
-      if (wrEl)  { wrEl.textContent  = simWr + '%'; wrEl.className = 'text-sm font-black ' + (simWr >= 50 ? 'text-purple-600' : 'text-red-500'); }
+      if (wrEl)  { wrEl.textContent  = simWr !== null ? simWr + '%' : '—'; wrEl.className = 'text-sm font-black ' + (simWr !== null && simWr >= 50 ? 'text-purple-600' : 'text-red-500'); }
       if (noteEl) noteEl.classList.add('hidden');
     }
   }
