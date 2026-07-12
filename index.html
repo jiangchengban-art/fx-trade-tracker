@@ -507,7 +507,7 @@
                 class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">タッチ有</button>
               <button type="button" data-group="breakeventouch" data-prefix="f" data-value="stoploss"
                 onclick="selectToggle('breakeventouch','stoploss','f')"
-                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">損切</button>
+                class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 transition-all active:scale-95">2回タッチで決済</button>
             </div>
             <input type="hidden" id="f-breakeventouch" value="">
           </div>
@@ -1026,6 +1026,12 @@
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
         <h3 class="text-sm font-bold text-slate-600 mb-3">🎯 エントリー品質 & 損切り分析</h3>
         <div id="entry-quality-stats"></div>
+      </div>
+
+      <!-- 建値タッチ分析 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
+        <h3 class="text-sm font-bold text-slate-600 mb-3">⚡ 建値タッチ分析</h3>
+        <div id="be-touch-stats"></div>
       </div>
 
       <!-- Calendar + Chance Rate -->
@@ -2361,6 +2367,7 @@
           ${t.maConvDuration ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">MA収束: </span><span style="color:#34d399;font-weight:600">${t.maConvDuration}h</span></div>` : ''}
           ${t.proTiming ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">🎯 </span><span style="color:${t.proTiming === 'match' ? '#10b981' : '#f87171'};font-weight:600">${t.proTiming === 'match' ? 'プロ同期' : 'タイミングずれ'}</span></div>` : ''}
           ${t.stoplossAvoidable ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">損切: </span><span style="color:${t.stoplossAvoidable === 'yes' ? '#f59e0b' : '#94a3b8'};font-weight:600">${t.stoplossAvoidable === 'yes' ? '🔧 排除可能' : '🛡️ 想定内'}</span></div>` : ''}
+          ${t.breakevenTouch === 'touch' ? `<div class="text-[10px] mt-0.5"><span style="color:#f59e0b;font-weight:600">⚡ 1タッチ保有継続</span></div>` : t.breakevenTouch === 'stoploss' ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8;font-weight:600">⚡ 2回タッチで決済</span></div>` : ''}
           ${tagHtml}
         </div>
       </div>
@@ -2512,7 +2519,7 @@
     ).join('');
     const skipBlockHidden = isSkipStatus(t.status) ? '' : 'hidden';
 
-    const beBtns = [['none','無し'],['touch','タッチ有'],['stoploss','損切']].map(([v, label]) =>
+    const beBtns = [['none','無し'],['touch','タッチ有'],['stoploss','2回タッチで決済']].map(([v, label]) =>
       `<button type="button" data-group="breakeventouch" data-prefix="e" data-value="${v}"
         onclick="selectToggle('breakeventouch','${v}','e')"
         class="toggle-btn py-2.5 rounded-xl text-xs font-semibold border-2 transition-all active:scale-95
@@ -3009,6 +3016,7 @@
     renderEntryDurationStats(trades);
     renderMaConvStats(trades);
     renderEntryQualityStats(trades);
+    renderBeTouchStats(trades);
     renderCapitalChart();
     renderChanceRate();
   }
@@ -5137,6 +5145,55 @@
       </div>` : '';
 
     el.innerHTML = proBar + saBar;
+  }
+
+  function renderBeTouchStats(trades) {
+    const el = document.getElementById('be-touch-stats');
+    if (!el) return;
+
+    const entries = trades.filter(t => t.status === 'entry' && t.breakevenTouch);
+    if (entries.length === 0) {
+      el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">データがありません<br><span class="text-xs text-slate-300">建値タッチ項目を入力してください</span></p>';
+      return;
+    }
+
+    const touchTrades = entries.filter(t => t.breakevenTouch === 'touch');
+    const stoplossTrades = entries.filter(t => t.breakevenTouch === 'stoploss');
+    const touchRatePct = Math.round(entries.length > 0 ? ((touchTrades.length + stoplossTrades.length) / entries.length) * 100 : 0);
+
+    const winResults = ['max', 'big', 'reg', 'small'];
+    const win = touchTrades.filter(t => winResults.includes(t.result)).length;
+    const be  = touchTrades.filter(t => t.result === 'breakeven').length;
+    const loss = touchTrades.filter(t => t.result === 'stoploss').length;
+    const avgPnl = touchTrades.length > 0 ? Math.round(touchTrades.reduce((s, t) => s + (t.pnl || 0), 0) / touchTrades.length) : null;
+
+    const rateBar = `
+      <div class="mb-4">
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-xs font-semibold text-slate-500">⚡ タッチ発生率</span>
+          <span class="text-2xl font-black" style="color:#f59e0b">${touchRatePct}<span class="text-sm font-bold ml-0.5" style="color:#fcd34d">%</span></span>
+        </div>
+        <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f1f5f9">
+          <div class="h-full rounded-full transition-all" style="width:${touchRatePct}%;background:#f59e0b"></div>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-1 text-right">タッチ ${touchTrades.length + stoplossTrades.length}回 / 建値トレール ${entries.length}回</div>
+      </div>`;
+
+    const holdSection = touchTrades.length > 0 ? `
+      <div class="pt-2" style="border-top:1px solid #f1f5f9">
+        <div class="text-xs font-semibold text-slate-500 mb-2">◆ 1タッチ許容→保有継続した場合（${touchTrades.length}回）</div>
+        <div class="flex gap-1.5 mb-2">
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#10b98120;color:#10b981">利確 ${win}</span>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#94a3b820;color:#94a3b8">建値 ${be}</span>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#ef444420;color:#ef4444">損切 ${loss}</span>
+        </div>
+        ${avgPnl !== null ? `<div class="text-xs" style="color:${avgPnl >= 0 ? '#10b981' : '#ef4444'}">平均損益: ${avgPnl >= 0 ? '+' : ''}${fmt(avgPnl)}円 <span class="text-[10px] text-slate-400">（即決済なら常に 0円）</span></div>` : ''}
+      </div>` : '';
+
+    const stoplossNote = stoplossTrades.length > 0 ? `
+      <div class="text-[10px] mt-2" style="color:#94a3b8">2回タッチで決済: ${stoplossTrades.length}回（結果は建値決済扱い）</div>` : '';
+
+    el.innerHTML = rateBar + holdSection + stoplossNote;
   }
 
   // CAPITAL CHART (real trades)
