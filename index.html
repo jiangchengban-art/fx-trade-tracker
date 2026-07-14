@@ -512,6 +512,22 @@
             <input type="hidden" id="f-breakeventouch" value="">
           </div>
 
+          <!-- 分散エントリー（バスケット） entry のときのみ表示 -->
+          <div id="f-basket-block" class="hidden deposit-hide">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="f-basket-check" onchange="toggleBasketSelect('f')"
+                class="w-4 h-4 rounded border-slate-300 accent-indigo-500">
+              <span class="text-xs font-semibold uppercase tracking-wide" style="color:#818cf8">🔗 分散エントリー（バスケット）</span>
+            </label>
+            <div id="f-basket-select-wrap" class="hidden mt-2">
+              <select id="f-basket-select"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 select-text">
+                <option value="__new__">🆕 新しいバスケット</option>
+              </select>
+              <p class="text-[10px] text-slate-400 mt-1">相関通貨に同時分散したトレードを1つのバスケットとして紐付けます</p>
+            </div>
+          </div>
+
           <!-- MA収束・拡散の形状 -->
           <div class="deposit-hide">
             <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#60a5fa">MA収束・拡散の形状</label>
@@ -1032,6 +1048,12 @@
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
         <h3 class="text-sm font-bold text-slate-600 mb-3">⚡ 建値タッチ分析</h3>
         <div id="be-touch-stats"></div>
+      </div>
+
+      <!-- 分散エントリー分析 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
+        <h3 class="text-sm font-bold text-slate-600 mb-3">🔗 分散エントリー分析</h3>
+        <div id="basket-stats"></div>
       </div>
 
       <!-- Calendar + Chance Rate -->
@@ -1935,6 +1957,64 @@
     });
   }
 
+  // ============================================================
+  // 分散エントリー（バスケット）ヘルパー
+  // ============================================================
+  // 直近バスケット一覧を取得（同一 groupId の entry トレードを1バスケットとして集約）
+  function getRecentBaskets(limit = 8) {
+    const groups = {};
+    dbLoadRaw().forEach(t => {
+      if (t.status !== 'entry' || !t.groupId || t.deleted) return;
+      const dt = t.datetimeEntry || t.datetime || '';
+      const g = groups[t.groupId] || (groups[t.groupId] = { groupId: t.groupId, earliest: dt, latest: dt, count: 0, pairs: [] });
+      g.count++;
+      if (dt && (!g.earliest || dt < g.earliest)) g.earliest = dt;
+      if (dt && (!g.latest   || dt > g.latest))   g.latest   = dt;
+      if (t.pair && !g.pairs.includes(t.pair)) g.pairs.push(t.pair);
+    });
+    return Object.values(groups)
+      .sort((a, b) => (b.latest || '').localeCompare(a.latest || ''))
+      .slice(0, limit)
+      .map(g => ({
+        groupId: g.groupId,
+        label: `${fmtDate(g.earliest)} · ${g.pairs.join('/') || '—'} (${g.count}件)`,
+      }));
+  }
+
+  // バスケット選択 select を組み立てる（現在の選択値は維持）
+  function populateBasketSelect(prefix, keepGroupId) {
+    const sel = document.getElementById(prefix + '-basket-select');
+    if (!sel) return;
+    const current = keepGroupId !== undefined ? keepGroupId : sel.value;
+    const baskets = getRecentBaskets();
+    let html = '<option value="__new__">🆕 新しいバスケット</option>';
+    // 現在編集中のバスケットが直近一覧に無ければ先頭に補完
+    if (current && current !== '__new__' && !baskets.some(b => b.groupId === current)) {
+      html += `<option value="${current}">（このトレードのバスケット）</option>`;
+    }
+    baskets.forEach(b => {
+      html += `<option value="${b.groupId}">${b.label}</option>`;
+    });
+    sel.innerHTML = html;
+    sel.value = (current && [...sel.options].some(o => o.value === current)) ? current : '__new__';
+  }
+
+  // チェックボックス切替：select 表示/非表示 ＋ 一覧更新
+  function toggleBasketSelect(prefix) {
+    const checked = document.getElementById(prefix + '-basket-check')?.checked;
+    const wrap = document.getElementById(prefix + '-basket-select-wrap');
+    if (wrap) wrap.classList.toggle('hidden', !checked);
+    if (checked) populateBasketSelect(prefix);
+  }
+
+  // 保存時に groupId を決定（entry かつ チェックON のときのみ）
+  function resolveGroupId(prefix, status) {
+    if (status !== 'entry') return null;
+    if (!document.getElementById(prefix + '-basket-check')?.checked) return null;
+    const sel = document.getElementById(prefix + '-basket-select')?.value;
+    return (sel && sel !== '__new__') ? sel : uid();
+  }
+
   // プロ同期（entry のみ）/ 損切排除可能（entry かつ 損切のみ）ブロックの表示制御
   function updateEntryQualityBlocks(p) {
     const status  = document.getElementById(p + '-status')?.value || '';
@@ -1950,6 +2030,16 @@
       const show = isEntry && result === 'stoploss';
       saBlock.classList.toggle('hidden', !show);
       if (!show) clearToggleGroup(p, 'stoplossavoidable');
+    }
+    // 分散エントリーブロック（entry のみ）。非表示時はチェック解除＆select隠す
+    const bkBlock = document.getElementById(p + '-basket-block');
+    if (bkBlock) {
+      bkBlock.classList.toggle('hidden', !isEntry);
+      if (!isEntry) {
+        const chk = document.getElementById(p + '-basket-check');
+        if (chk) chk.checked = false;
+        document.getElementById(p + '-basket-select-wrap')?.classList.add('hidden');
+      }
     }
   }
 
@@ -2065,6 +2155,7 @@
         maConvDuration: null,
         proTiming: null,
         stoplossAvoidable: null,
+        groupId: null,
         createdAt: new Date().toISOString(),
       };
     } else {
@@ -2094,6 +2185,7 @@
         maConvDuration: parseFloat(document.getElementById('f-ma-conv').value) || null,
         proTiming: status === 'entry' ? (document.getElementById('f-protiming').value || null) : null,
         stoplossAvoidable: (status === 'entry' && result === 'stoploss') ? (document.getElementById('f-stoplossavoidable').value || null) : null,
+        groupId: resolveGroupId('f', status),
         createdAt: new Date().toISOString(),
       };
     }
@@ -2133,6 +2225,11 @@
     document.getElementById('f-skip-block')?.classList.add('hidden');
     document.getElementById('f-protiming-block')?.classList.add('hidden');
     document.getElementById('f-stoploss-avoidable-block')?.classList.add('hidden');
+    // 分散エントリー: チェック解除・select非表示・初期化
+    document.getElementById('f-basket-block')?.classList.add('hidden');
+    const fBasketChk = document.getElementById('f-basket-check');
+    if (fBasketChk) fBasketChk.checked = false;
+    document.getElementById('f-basket-select-wrap')?.classList.add('hidden');
     // Reset pnl block (show again)
     const pnlBlock = document.getElementById('f-pnl-block');
     if (pnlBlock) pnlBlock.classList.remove('hidden');
@@ -2368,6 +2465,7 @@
           ${t.proTiming ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">🎯 </span><span style="color:${t.proTiming === 'match' ? '#10b981' : '#f87171'};font-weight:600">${t.proTiming === 'match' ? 'プロ同期' : 'タイミングずれ'}</span></div>` : ''}
           ${t.stoplossAvoidable ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8">損切: </span><span style="color:${t.stoplossAvoidable === 'yes' ? '#f59e0b' : '#94a3b8'};font-weight:600">${t.stoplossAvoidable === 'yes' ? '🔧 排除可能' : '🛡️ 想定内'}</span></div>` : ''}
           ${t.breakevenTouch === 'touch' ? `<div class="text-[10px] mt-0.5"><span style="color:#f59e0b;font-weight:600">⚡ 1タッチ保有継続</span></div>` : t.breakevenTouch === 'stoploss' ? `<div class="text-[10px] mt-0.5"><span style="color:#94a3b8;font-weight:600">⚡ 2回タッチで決済</span></div>` : ''}
+          ${t.groupId ? `<div class="text-[10px] mt-0.5"><span style="color:#818cf8;font-weight:600">🔗 分散エントリー</span></div>` : ''}
           ${tagHtml}
         </div>
       </div>
@@ -2546,6 +2644,7 @@
     ).join('');
     const ptBlockHidden = t.status === 'entry' ? '' : 'hidden';
     const saBlockHidden = (t.status === 'entry' && t.result === 'stoploss') ? '' : 'hidden';
+    const basketBlockHidden = t.status === 'entry' ? '' : 'hidden';
     const stoplossAvoidableBtns = [['yes','🔧 排除可能'],['no','🛡️ 想定内']].map(([v, label]) =>
       `<button type="button" data-group="stoplossavoidable" data-prefix="e" data-value="${v}"
         onclick="selectToggle('stoplossavoidable','${v}','e')"
@@ -2626,6 +2725,19 @@
           <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#fbbf24">建値タッチ</label>
           <div class="grid grid-cols-3 gap-2">${beBtns}</div>
           <input type="hidden" id="e-breakeventouch" value="${t.breakevenTouch || ''}">
+        </div>
+        <div id="e-basket-block" class="${basketBlockHidden} deposit-hide">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="e-basket-check" ${t.groupId ? 'checked' : ''} onchange="toggleBasketSelect('e')"
+              class="w-4 h-4 rounded border-slate-300 accent-indigo-500">
+            <span class="text-xs font-semibold uppercase tracking-wide" style="color:#818cf8">🔗 分散エントリー（バスケット）</span>
+          </label>
+          <div id="e-basket-select-wrap" class="${t.groupId ? '' : 'hidden'} mt-2">
+            <select id="e-basket-select"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 select-text">
+              <option value="__new__">🆕 新しいバスケット</option>
+            </select>
+          </div>
         </div>
         <div class="deposit-hide">
           <label class="block text-xs font-semibold uppercase tracking-wide mb-2" style="color:#60a5fa">MA収束・拡散の形状</label>
@@ -2740,6 +2852,8 @@
     renderImgPreview('e');
     eTags = t.tags ? [...t.tags] : [];
     renderTagChips('e');
+    // バスケット select を直近一覧＋現在のバスケットで初期化
+    populateBasketSelect('e', t.groupId || '__new__');
   }
 
   function saveEdit() {
@@ -2769,6 +2883,7 @@
         maConvDuration: null,
         proTiming: null,
         stoplossAvoidable: null,
+        groupId: null,
         reason:    document.getElementById('e-reason').value.trim(),
         tags:      [],
         updatedAt: new Date().toISOString(),
@@ -2795,6 +2910,7 @@
         maConvDuration: parseFloat(document.getElementById('e-ma-conv').value) || null,
         proTiming: newStatus === 'entry' ? (document.getElementById('e-protiming').value || null) : null,
         stoplossAvoidable: (newStatus === 'entry' && document.getElementById('e-result').value === 'stoploss') ? (document.getElementById('e-stoplossavoidable').value || null) : null,
+        groupId: resolveGroupId('e', newStatus),
         reason:    document.getElementById('e-reason').value.trim(),
         images:    { m15: eImgs.m15, h1: eImgs.h1, h4: eImgs.h4, d1: eImgs.d1, others: [...eImgs.others] },
         tags:      [...eTags],
@@ -3017,6 +3133,7 @@
     renderMaConvStats(trades);
     renderEntryQualityStats(trades);
     renderBeTouchStats(trades);
+    renderBasketStats(trades);
     renderCapitalChart();
     renderChanceRate();
   }
@@ -4579,7 +4696,7 @@
   // ============================================================
   function exportCSV() {
     const trades = dbLoad();
-    const headers = ['日時','エグジット日時','ステータス','手法','メイン通貨','サブ通貨','時間足','結果','損益(円)','見送り理由','建値タッチ','MAシェイプ','MA収束期間(h)','プロ同期','損切排除可能','タグ','メモ'];
+    const headers = ['日時','エグジット日時','ステータス','手法','メイン通貨','サブ通貨','時間足','結果','損益(円)','見送り理由','建値タッチ','MAシェイプ','MA収束期間(h)','プロ同期','損切排除可能','グループID','タグ','メモ'];
     const methodLabel = { '1':'乖離埋め', '2':'3波狙い', '3':'その他' };
     const rows = trades.map(t => [
       t.datetime        || '',
@@ -4597,6 +4714,7 @@
       t.maConvDuration  ?? '',
       t.proTiming === 'match' ? 'できた' : t.proTiming === 'miss' ? 'できなかった' : '',
       t.stoplossAvoidable === 'yes' ? '排除可能' : t.stoplossAvoidable === 'no' ? '想定内' : '',
+      t.groupId         || '',
       (t.tags || []).join('|'),
       (t.reason || '').replace(/\n/g, ' '),
     ]);
@@ -5194,6 +5312,120 @@
       <div class="text-[10px] mt-2" style="color:#94a3b8">2回タッチで決済: ${stoplossTrades.length}回（結果は建値決済扱い）</div>` : '';
 
     el.innerHTML = rateBar + holdSection + stoplossNote;
+  }
+
+  // 分散エントリー（バスケット）分析：同時分散したトレードをバスケット単位で集計
+  function renderBasketStats(trades) {
+    const el = document.getElementById('basket-stats');
+    if (!el) return;
+
+    const entries = trades.filter(t => t.status === 'entry');
+    // groupId ごとにバスケット化
+    const groups = {};
+    entries.forEach(t => {
+      if (!t.groupId) return;
+      (groups[t.groupId] || (groups[t.groupId] = [])).push(t);
+    });
+    const baskets = Object.entries(groups).map(([groupId, members]) => {
+      const netPnl = members.reduce((s, m) => s + (m.pnl || 0), 0);
+      const dts = members.map(m => m.datetimeEntry || m.datetime || '').filter(Boolean);
+      const earliest = dts.length ? dts.reduce((a, b) => a < b ? a : b) : '';
+      const pairs = [...new Set(members.map(m => m.pair).filter(Boolean))];
+      return { groupId, members, netPnl, earliest, pairs, legs: members.length };
+    }).sort((a, b) => (b.earliest || '').localeCompare(a.earliest || ''));
+
+    if (baskets.length === 0) {
+      el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">データがありません<br><span class="text-xs text-slate-300">登録時に「🔗 分散エントリー」をチェックしてください</span></p>';
+      return;
+    }
+
+    // バスケット単位の勝敗（net で判定・建値は勝率分母から除外＝v45ルール）
+    let bWins = 0, bLosses = 0, bBes = 0, bSum = 0;
+    baskets.forEach(bk => {
+      bSum += bk.netPnl;
+      if (bk.netPnl > 0) bWins++;
+      else if (bk.netPnl < 0) bLosses++;
+      else bBes++;
+    });
+    const bDecided = bWins + bLosses;
+    const bWinRate = bDecided > 0 ? Math.round(bWins / bDecided * 100) : null;
+    const avgBasketPnl = Math.round(bSum / baskets.length);
+
+    // レッグ単位（個々のトレード）の勝敗 — バスケットとの対比用
+    const legMembers = baskets.flatMap(bk => bk.members);
+    let lWins = 0, lLosses = 0, lBes = 0;
+    legMembers.forEach(m => {
+      if ((m.pnl || 0) > 0) lWins++;
+      else if ((m.pnl || 0) < 0) lLosses++;
+      else lBes++;
+    });
+
+    // 単独エントリー（groupId なし）との比較
+    const solo = entries.filter(t => !t.groupId);
+    const soloSeg = computeSegStats(solo);
+    const soloAvg = solo.length > 0 ? Math.round(soloSeg.avgPnl) : null;
+
+    // ヘッダー：バスケット勝率
+    const header = `
+      <div class="mb-4">
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-xs font-semibold text-slate-500">🔗 バスケット勝率</span>
+          <span class="text-2xl font-black" style="color:#818cf8">${bWinRate === null ? '—' : bWinRate}${bWinRate === null ? '' : '<span class="text-sm font-bold ml-0.5" style="color:#a5b4fc">%</span>'}</span>
+        </div>
+        <div class="w-full h-3 rounded-full overflow-hidden" style="background:#f1f5f9">
+          <div class="h-full rounded-full transition-all" style="width:${bWinRate || 0}%;background:#818cf8"></div>
+        </div>
+        <div class="flex gap-1.5 mt-2">
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#10b98120;color:#10b981">勝ち ${bWins}</span>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#ef444420;color:#ef4444">負け ${bLosses}</span>
+          ${bBes > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#94a3b820;color:#94a3b8">建値 ${bBes}</span>` : ''}
+          <span class="text-[10px] text-slate-400 ml-auto self-center">全 ${baskets.length} バスケット</span>
+        </div>
+      </div>`;
+
+    // 平均損益 & 単独比較
+    const compareSection = `
+      <div class="pt-3 grid grid-cols-2 gap-2" style="border-top:1px solid #f1f5f9">
+        <div class="rounded-xl p-2.5" style="background:#eef2ff">
+          <div class="text-[10px] font-semibold" style="color:#818cf8">🔗 分散バスケット</div>
+          <div class="text-lg font-black" style="color:${avgBasketPnl >= 0 ? '#10b981' : '#ef4444'}">${avgBasketPnl >= 0 ? '+' : ''}${fmt(avgBasketPnl)}<span class="text-[10px] font-bold ml-0.5 text-slate-400">円/回</span></div>
+          <div class="text-[10px] text-slate-400">合計 ${bSum >= 0 ? '+' : ''}${fmt(Math.round(bSum))}円</div>
+        </div>
+        <div class="rounded-xl p-2.5" style="background:#f8fafc">
+          <div class="text-[10px] font-semibold text-slate-500">単独エントリー</div>
+          <div class="text-lg font-black" style="color:${soloAvg === null ? '#94a3b8' : soloAvg >= 0 ? '#10b981' : '#ef4444'}">${soloAvg === null ? '—' : `${soloAvg >= 0 ? '+' : ''}${fmt(soloAvg)}`}<span class="text-[10px] font-bold ml-0.5 text-slate-400">円/回</span></div>
+          <div class="text-[10px] text-slate-400">${solo.length}件 · 勝率${soloSeg.winrate === null ? '—' : soloSeg.winrate + '%'}</div>
+        </div>
+      </div>`;
+
+    // レッグ再解釈：個々は負けてもバスケットは勝ち
+    const reframe = `
+      <div class="pt-3 mt-3" style="border-top:1px solid #f1f5f9">
+        <div class="text-xs font-semibold text-slate-500 mb-2">◆ レッグ単位 vs バスケット単位</div>
+        <div class="text-[11px] text-slate-500 leading-relaxed">
+          個々のトレード <span style="color:#10b981;font-weight:700">${lWins}勝</span> <span style="color:#ef4444;font-weight:700">${lLosses}敗</span>${lBes > 0 ? ` <span style="color:#94a3b8;font-weight:700">建${lBes}</span>` : ''}（計${legMembers.length}レッグ）<br>
+          → まとめると <span style="color:#818cf8;font-weight:700">${bWins}勝 ${bLosses}敗${bBes > 0 ? ` 建${bBes}` : ''}</span> のバスケット
+        </div>
+      </div>`;
+
+    // 直近バスケットリスト
+    const listRows = baskets.slice(0, 8).map(bk => {
+      const col = bk.netPnl > 0 ? '#10b981' : bk.netPnl < 0 ? '#ef4444' : '#94a3b8';
+      const mark = bk.netPnl > 0 ? '勝' : bk.netPnl < 0 ? '負' : '建';
+      return `
+        <div class="flex items-center gap-2 py-1.5" style="border-top:1px solid #f8fafc">
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="background:${col}20;color:${col}">${mark}</span>
+          <span class="text-[11px] text-slate-500 flex-1 truncate">${fmtDate(bk.earliest)} · ${bk.pairs.join('/') || '—'} <span class="text-slate-300">(${bk.legs}レッグ)</span></span>
+          <span class="text-xs font-bold" style="color:${col}">${bk.netPnl >= 0 ? '+' : ''}${fmt(Math.round(bk.netPnl))}円</span>
+        </div>`;
+    }).join('');
+    const listSection = `
+      <div class="pt-3 mt-3" style="border-top:1px solid #f1f5f9">
+        <div class="text-xs font-semibold text-slate-500 mb-1">◆ 直近バスケット</div>
+        ${listRows}
+      </div>`;
+
+    el.innerHTML = header + compareSection + reframe + listSection;
   }
 
   // CAPITAL CHART (real trades)
