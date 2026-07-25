@@ -236,31 +236,24 @@
 
 **最終更新**: 2026-06-06 — Supabase 双方向同期 ✅ 完成・PC ↔ iPhone 実装完了・オンデマンド画像読み込み・Firebase Hosting v33
 
-## 📋 次セッション優先事項（2026-06-22 現在）
+## 📋 次セッション優先事項（2026-07-26 現在）
 
-### 🔴 必須（ユーザー報告・実装待ち）
-- [ ] **iPhone Safari でメモが反映されているか実機確認**
-  - PC 記入 → iPhone リロード → 同期確認
-  - Service Worker v41 キャッシュ更新確認（タブ完全閉じ必須）
-- [ ] **Supabase のメモレコード汚染確認**
-  - v40 実装前のテストで空メモが push された可能性
-  - コンソール直接確認または `resetSupabaseToPC()` 検討
+### 🔴 必須（実装優先度 High）
+- [ ] **Firebase Storage 移行実装** — PC ↔ iPhone 両デバイスで画像同期
+  - 実装時間: 6～7 時間（自動実装予定）
+  - ステップ: Firebase セットアップ → Core 関数 → handleRegister/saveEdit 修正 → Supabase 連携 → 履歴カード対応 → マイグレーション → テスト
+  - テスト: PC・iPhone 両機器での画像表示確認必須
 
-### 🟡 拡張（安定性向上）
-- [ ] 修正A 実装：「中身が変わっていない保存は完全スキップ」
-  - iPhone が空メモで PC データを上書きしないようにする
-  - `_saveMemoRecord()` に深さ比較ロジック追加
-- [ ] メモのソフト削除（`deleted: true`）が正常に動作するか確認
-- [ ] CSV エクスポート時にメモが除外されているか確認
+### 🟡 重要（検証・テスト）
+- [ ] **iPhone 同期の根本原因調査** — 6月29日のトレードが反映されない理由
+  - 実施内容: PC で登録した 6月29日トレード → iPhone 同期確認 → 未反映検出
+  - 仮説: 古いデータの iPhone ローカルストレージが優位（pull-first でも上書きされない可能性）
+  - 詳細: [[archived_session_2026_07_26]]
 
-### 🟢 低優先（安定性確認）
-- [ ] PC で画像付きトレードが正常に動作確認
-- [ ] iPhone で「📷 画像を読み込む」機能の動作確認
-- [ ] 通常運用での容量オーバーが本当に解決したか確認
-- [ ] Supabase セキュリティルール強化（認証付きに移行）
+### 🟢 低優先（将来実装）
+- [ ] 複数デバイス間のデータ競合検出・自動解決
+- [ ] Supabase セキュリティルール強化（認証付き）
 - [ ] メールアドレス認証追加（ユーザー個別データ管理）
-- [ ] リアルタイム同期の実装（WebSocket 代替）
-- [ ] 削除済みデータ自動クリーンアップ
 - [ ] タックス計算タブ・ゴミ箱UI
 
 ## 🔧 2026-06-03 セッション：Supabase 同期実装開始
@@ -557,3 +550,41 @@
 **デプロイ**: ✅ Firebase Hosting v47
 
 **最終更新**: 2026-07-25 — 分散エントリー（バスケット）分析機能実装・バスケット単位の勝率/期待値検証基盤確立 (sw v47)
+
+## 🔧 2026-07-26 セッション：Supabase 復旧・同期検証・Firebase Storage 移行仕様設計
+
+**背景**
+- Supabase プロジェクトが Organization レベルでサービス制限（HTTP 402）— Egress 19.4GB 超過（月間 5GB 枠）
+- iPhone で PC 入力データ（6月29日トレード）が反映されない
+- v42 の画像 cloudPush 除外により、全履歴カードで画像が表示されない
+
+**実装内容**
+- [x] Supabase ダッシュボード確認 → 「Paused」状態を「Restore project」で復旧 ✅
+- [x] DNS 解決確認 ✅ （vktnrrrfeeicfewtllfx.supabase.co → 172.64.149.246）
+- [x] REST API 疎通テスト ✅ （GET /trades → JSON 200 OK）
+- [x] resetSupabaseToPC() 実行 ✅ （PC ローカルデータを Supabase に上書き）
+- [x] iPhone 同期検証 ⚠️ （6月29日データが反映されていない）
+- [x] **Firebase Storage 移行仕様書作成** ✅ （6～7時間の完全実装計画・詳細設計済み）
+  - データ構造変更: Base64 → Firebase URL に移行
+  - PC・iPhone 両デバイスでの画像同期実現
+  - Supabase egress ゼロ（画像は Firebase に分離）
+  - 月額コスト: ¥0（月 1GB 無料枠内）
+
+**テスト状況**
+- ✅ Supabase 復旧・API 疎通確認
+- ✅ resetSupabaseToPC() で 6月29日データも Supabase に反映
+- ⚠️ iPhone 同期検証: PC データが iPhone に表示されない（原因調査中）
+- ⏳ Firebase Storage 実装: 仕様設計完了、実装待ち
+
+**ユーザー確認事項**
+- [x] Firebase Storage の実装規模確認（6～7時間の必要性を確認・了承）
+- [x] 自動実装フロー構築（以降は「実装をお願いします」→ 確認なしで自動実装）
+
+**次セッション方針**
+- Firebase Storage 移行実装（自動実装・6～7時間）
+- PC ↔ iPhone 両デバイスでの画像表示確認
+- iPhone 同期の安定性検証
+
+**詳細**: [[archived_session_2026_07_26]]
+
+**最終更新**: 2026-07-26 — Supabase 復旧・同期検証・Firebase Storage 仕様設計完了 (sw v47・実装待ち)
