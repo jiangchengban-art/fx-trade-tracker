@@ -1613,6 +1613,79 @@
   }
 
   // ============================================================
+  // IMAGE STORAGE — Firebase Storage（REST API・SDK不要）
+  // 画像は Base64 のまま Supabase に送らず、Firebase Storage にアップロードして
+  // URL のみを画像フィールドに保持する（Supabase egress 対策）
+  // ============================================================
+  const FIREBASE_STORAGE_BUCKET = "fx-trade-tracker-de055.firebasestorage.app";
+
+  function dataUrlToBlob(dataUrl) {
+    const [meta, b64] = dataUrl.split(',');
+    const mime = meta.match(/:(.*?);/)[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+  function uploadImageToStorage(dataUrl, path) {
+    const blob = dataUrlToBlob(dataUrl);
+    const encodedPath = encodeURIComponent(path);
+    return fetch(`https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o?uploadType=media&name=${encodedPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type },
+      body: blob
+    })
+      .then(r => { if (!r.ok) throw new Error('Storage upload HTTP ' + r.status); return r.json(); })
+      .then(() => `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o/${encodedPath}?alt=media`);
+  }
+  // t.images 内の Base64（"data:" で始まる）だけを Storage にアップロードし、URL に置き換える
+  // 既に URL のもの・null はそのまま素通し
+  async function uploadTradeImages(tradeId, imgs) {
+    const result = { m15: imgs.m15 || null, h1: imgs.h1 || null, h4: imgs.h4 || null, d1: imgs.d1 || null, others: [...(imgs.others || [])] };
+    for (const slot of ['m15', 'h1', 'h4', 'd1']) {
+      if (result[slot] && result[slot].startsWith('data:')) {
+        try { result[slot] = await uploadImageToStorage(result[slot], `trades/${tradeId}/${slot}.jpg`); }
+        catch (e) { console.warn('画像アップロード失敗:', slot, e); }
+      }
+    }
+    for (let i = 0; i < result.others.length; i++) {
+      if (result.others[i] && result.others[i].startsWith('data:')) {
+        try { result.others[i] = await uploadImageToStorage(result.others[i], `trades/${tradeId}/others_${i}_${Date.now()}.jpg`); }
+        catch (e) { console.warn('画像アップロード失敗: others', i, e); }
+      }
+    }
+    return result;
+  }
+  function hasAnyImage(imgs) {
+    if (!imgs) return false;
+    return !!(imgs.m15 || imgs.h1 || imgs.h4 || imgs.d1 || (imgs.others && imgs.others.length > 0));
+  }
+  function hasBase64Images(t) {
+    if (!t || !t.images) return false;
+    const vals = [t.images.m15, t.images.h1, t.images.h4, t.images.d1, ...(t.images.others || [])];
+    return vals.some(v => typeof v === 'string' && v.startsWith('data:'));
+  }
+  // Console から実行可能: 既存トレードの Base64 画像を Firebase Storage に一括移行
+  async function migrateImagesToFirebase() {
+    const trades = dbLoadRaw();
+    let migrated = 0;
+    for (const t of trades) {
+      if (hasBase64Images(t)) {
+        console.log('画像アップロード中:', t.id);
+        t.images = await uploadTradeImages(t.id, t.images);
+        migrated++;
+      }
+    }
+    if (migrated > 0) {
+      dbSave(trades);
+      console.log(`✅ ${migrated} 件のトレード画像を Firebase Storage に移行しました`);
+    } else {
+      console.log('移行対象の画像（Base64）はありませんでした');
+    }
+    return migrated;
+  }
+
+  // ============================================================
   // STATE
   // ============================================================
   let currentTab   = 'register';
@@ -1659,19 +1732,11 @@
   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdG5ycnJmZWVpY2Zld3RsbGZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDMxNjAsImV4cCI6MjA5NTk3OTE2MH0.lS6BPaU1TK8yGOvhghXj3wuSh3YR3Idasai473u90gw";
 
   // クラウドへ書き込み（Supabase upsert）
-  // 画像がローカルで省略されているトレードか判定（クラウドには画像があるが手元には無い）
-  // → push するとクラウドの画像を消してしまうので、こういうトレードは push 対象から外す
-  function isImgStrippedLocally(t) {
-    if (!t._hasImages) return false;
-    const im = t.images;
-    const hasLocalImg = im && (im.m15 || im.h1 || im.h4 || im.d1 || (im.others && im.others.length > 0));
-    return !hasLocalImg;
-  }
   function cloudPush(trades) {
     const records = trades
-      // 転送量削減: 画像ありトレードは push 対象から除外（iPhone は「📷 読み込む」で必要時だけ取得）
-      // iPhone からの push で画像なしデータがクラウドの画像を上書き消去するのも防ぐ
-      .filter(t => !t._hasImages && !isImgStrippedLocally(t))
+      // Base64 画像が残っているトレードは push 対象から除外（Firebase Storage 移行前の安全弁）
+      // 画像は uploadTradeImages() で URL 化されてから保存されるため、通常はここに引っかからない
+      .filter(t => !hasBase64Images(t))
       .map(t => {
         const { _hasImages, ...clean } = t; // 内部フラグはクラウドに送らない
         return { id: t.id, data: clean, updated_at: new Date().toISOString() };
@@ -2121,7 +2186,7 @@
   // ============================================================
   // REGISTER
   // ============================================================
-  function handleRegister(e) {
+  async function handleRegister(e) {
     e.preventDefault();
     const status        = document.getElementById('f-status').value;
     const datetimeEntry = document.getElementById('f-datetime-entry').value;
@@ -2188,6 +2253,11 @@
         groupId: resolveGroupId('f', status),
         createdAt: new Date().toISOString(),
       };
+    }
+
+    if (hasAnyImage(trade.images)) {
+      showToast('📤 画像をアップロード中…');
+      trade.images = await uploadTradeImages(trade.id, trade.images);
     }
 
     const trades = dbLoadRaw();
@@ -2856,7 +2926,7 @@
     populateBasketSelect('e', t.groupId || '__new__');
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     const trades = dbLoadRaw();
     const idx = trades.findIndex(t => t.id === editingId);
     if (idx === -1) return;
@@ -2916,6 +2986,10 @@
         tags:      [...eTags],
         updatedAt: new Date().toISOString(),
       };
+      if (hasAnyImage(trades[idx].images)) {
+        showToast('📤 画像をアップロード中…');
+        trades[idx].images = await uploadTradeImages(trades[idx].id, trades[idx].images);
+      }
     }
     dbSave(trades);
     closeEditModal();

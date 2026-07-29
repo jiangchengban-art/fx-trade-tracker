@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v47）
+├── sw.js                   Service Worker（オフライン対応・現在 v48）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -588,3 +588,45 @@
 **詳細**: [[archived_session_2026_07_26]]
 
 **最終更新**: 2026-07-26 — Supabase 復旧・同期検証・Firebase Storage 仕様設計完了 (sw v47・実装待ち)
+
+## 🔧 2026-07-27/28/29 セッション：Firebase Storage 移行実装（v48）
+
+**背景**
+- 前セッション（2026-07-26）で Firebase Storage 移行の仕様設計完了
+- v42 での画像 cloudPush 除外により、全履歴カードで画像が表示されない状態
+- 自動実装フロー確立（確認なしで実装開始）
+
+**実装内容**
+- [x] Firebase Storage REST API 関数群実装 ✅ 2026-07-27
+  - `uploadImageToStorage()` / `uploadTradeImages()` （Base64 → Firebase URL）
+  - `hasAnyImage()` / `hasBase64Images()` (判定用)
+  - `migrateImagesToFirebase()` （既存画像一括移行・コンソール用）
+- [x] handleRegister / saveEdit を async 化 ✅ 2026-07-27
+  - 画像アップロード待ち処理追加
+  - 保存前に URL 化完了
+- [x] cloudPush フィルタを base64 検出ベースに変更 ✅ 2026-07-27
+  - v42 の「画像ありは全除外」から、「Base64 のみ除外」に変更
+  - URL 化された画像は通常通り Supabase 同期
+- [x] Service Worker キャッシュ v47 → v48 ✅ 2026-07-27
+- [x] 構文チェック OK ✅ 2026-07-27
+- [x] Firebase Storage ルール設定（永続テストモード） ✅ 2026-07-29
+  - Blaze プラン有効化
+  - シミュレーション実行成功
+  - ルール公開待ち
+
+**実装ポイント**
+- SDK 不使用（REST API 経由）→ iOS Safari 確実対応
+- 月額コスト完全無料（無料枠 1GB/月、推定使用量 7.5～30MB）
+- 既存の Base64 画像との互換性維持
+- cloudPush フィルタ変更で Supabase egress ゼロ化
+
+**テスト状況**
+- ✅ 構文チェック
+- ✅ Firebase Storage ルール・シミュレーション実行
+- ⏳ ルール公開待ち
+- ⏳ Firebase Hosting デプロイ待ち
+- ⏳ 実機テスト待ち（PC・iPhone 両デバイス）
+
+**詳細**: [[archived_session_2026_07_27_28_29_firebase_storage]]
+
+**最終更新**: 2026-07-29 — Firebase Storage 移行実装完了・コード完成・ルール公開待ち (sw v48)
