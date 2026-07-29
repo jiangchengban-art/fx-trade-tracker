@@ -630,3 +630,71 @@
 **詳細**: [[archived_session_2026_07_27_28_29_firebase_storage]]
 
 **最終更新**: 2026-07-29 — Firebase Storage 移行実装完了・コード完成・ルール公開待ち (sw v48)
+
+## 🔧 2026-07-29/30 セッション：戻しフィボナッチ（戻りエントリー）分析機能実装（v49）
+
+**背景**
+- ユーザー要望：逆指値でタイミングを逃した際に、1波にフィボナッチを当てて23.6/38.2/50.0/61.8%戻りでエントリー
+- この「戻りエントリー」手法が期待値を生んでいるか検証するため、戻しフィボ％を記録して統計を取りたい
+
+**実装内容**
+- [x] 新フィールド `fibRetrace`（string | null）追加（entry 時のみ意味を持つ）✅ 2026-07-29
+  - 値: `'23.6'` / `'38.2'` / `'50.0'` / `'61.8'`
+  - deposit/through/miss では常に null
+- [x] TOGGLE_STYLES に fibretrace グループ（cyan/teal/sky/blue）追加 ✅
+- [x] 登録フォーム・編集モーダルに「🔢 戻しフィボナッチ」トグルブロック（entry限定表示）✅
+- [x] updateEntryQualityBlocks に fibretrace-block 表示制御統合 ✅
+- [x] handleRegister / saveEdit / resetRegisterForm 対応 ✅
+- [x] 履歴カードに「🔢 戻り38.2%」バッジ表示 ✅
+- [x] 統計セクション「🔢 戻りエントリー分析」新設 ✅
+  - 戻りエントリー勝率（建値除外・v45ルール踏襲）
+  - 戻りエントリー vs 通常逆指値の平均損益・勝率比較
+  - フィボレベル別内訳（23.6/38.2/50.0/61.8）
+- [x] CSV エクスポート「フィボ戻し(%)」列追加 ✅
+- [x] Service Worker v48 → v49 ✅
+- [x] Playwright 機能テスト実施（全PASS・ページエラーなし）✅
+
+**テスト結果**
+- ✅ entry限定表示・deposit/through切替時の自動クリア
+- ✅ fibRetrace 保存・復元・編集モーダルハイライト
+- ✅ 履歴バッジ表示（38.2% / 50.0%）
+- ✅ 統計セクション：戻り2件 勝率100% +15,000円/回 vs 通常11件 勝率22%
+- ✅ フィボレベル別内訳表示
+- ✅ JS構文チェック OK
+
+**デプロイ**: ✅ Firebase Hosting v49 デプロイ完了
+
+**最終更新**: 2026-07-30 — 戻しフィボナッチ分析機能実装完了・Playwright テスト全PASS・Firebase Hosting デプロイ完了 (sw v49)
+
+---
+
+## 📋 次セッション優先事項（2026-07-30 現在）
+
+### 🔴 必須（実装優先度 High）
+- [ ] **Firebase Storage ルール公開** — v48 コード完成・ルール設定完了 → 本番ルール公開
+- [ ] **Firebase Storage 画像同期テスト** — PC・iPhone 両デバイスで実機テスト
+  - PC: 新規トレード登録 → 画像アップロード → 履歴表示で画像確認
+  - iPhone: Supabase 同期確認 → 「📷 読み込む」ボタン→ Firebase から画像取得
+
+### 🟡 重要（検証・デバッグ）
+- [ ] **既存トレード画像の一括移行** — `migrateImagesToFirebase()` をブラウザコンソール実行
+  - 既存の Base64 画像を Firebase Storage にアップロード
+  - imageUrls に置換
+  - Supabase に保存
+- [ ] **iPhone 同期の根本原因調査** — 6月29日のトレードが反映されない理由
+  - 仮説: 古いデータの iPhone ローカルストレージが優位（pull-first でも上書きされない）
+
+### 🟢 低優先（将来実装）
+- [ ] 複数デバイス間のデータ競合検出・自動解決
+- [ ] Supabase セキュリティルール強化（認証付き）
+- [ ] メールアドレス認証追加（ユーザー個別データ管理）
+
+---
+
+## 💾 リソース＆リンク
+
+**コード**: [index.html](index.html) (v49・戻しフィボ実装済み) / [sw.js](sw.js) (v49)
+**ドキュメント**: [CLAUDE.md](CLAUDE.md) / [MEMORY.md](MEMORY.md)
+**リモート**: https://github.com/jiangchengban-art/fx-trade-tracker
+**ライブ**: https://fx-trade-tracker-de055.web.app (v49・最新デプロイ)
+**セッション記録**: `memory/archived_session_2026_07_29_30_fib_retrace.md`
