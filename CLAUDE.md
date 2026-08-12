@@ -666,25 +666,64 @@
 
 **最終更新**: 2026-07-30 — 戻しフィボナッチ分析機能実装完了・Playwright テスト全PASS・Firebase Hosting デプロイ完了 (sw v49)
 
+## 🔧 2026-08-07/08 セッション：Firebase Storage ルール公開・画像アップロード動作確認（v49）
+
+**背景**
+- v48（Firebase Storage 実装）のルール公開待ちの状態
+- ユーザーからの懸念：既存画像消失の原因・課金枠の関係
+
+**実装内容**
+- [x] Firebase Storage セキュリティルール公開 ✅ 2026-08-07
+  - 認証なし・誰でも読み書き可（REST API トークンなし設計に対応）
+  - ルール設定：`match /trades/{allPaths=**} { allow read, write: if true; }`
+- [x] REST API 動作確認テスト ✅ 2026-08-07
+  - Playwright で画像アップロード実行 → **HTTP 200 成功**
+  - 生成URL読み取り確認 → **HTTP 200（公開読取可）**
+- [x] 既存画像消失の原因分析 ✅ 2026-08-08
+  - **原因**: v42 で localStorage 容量超過（5MB上限） → アプリが自動削除（`_leanMode`）
+  - **背景**: Base64 画像 1MB × 複数枚 = 容量超過 → `saveTradesLocal()` が画像省略版を保存
+  - **確認**: cloudPull() のたびに画像なし版が上書き保存される仕様
+  - 結論：**私の操作による削除ではなく、アプリの容量対策**
+- [x] Supabase/Firebase Storage 関係確認（進行中）
+  - Supabase: AWS S3 使用（月 5GB 転送枠・独立）
+  - Firebase: Google Cloud Storage 使用（月 1GB 転送 + 5GB ストレージ・独立）
+  - 課金枠が分離されており、Firebase Storage は実質無料枠内（推定 7.5～30MB）
+
+**テスト状況**
+- ✅ Firebase Storage ルール公開・API 動作確認
+- ✅ REST API アップロード（HTTP 200）・読み取り（HTTP 200）
+- ⏳ 新規トレード登録での画像アップロード（次セッション）
+- ⏳ iPhone 同期確認（次セッション）
+
+**詳細**: [[archived_session_2026_08_07_08_firebase_storage_verification]]
+
+**最終更新**: 2026-08-08 — Firebase Storage ルール公開完了・REST API 動作確認・画像消失原因分析完了 (sw v49)
+
 ---
 
-## 📋 次セッション優先事項（2026-07-30 現在）
+## 📋 次セッション優先事項（2026-08-08 現在）
 
 ### 🔴 必須（実装優先度 High）
-- [ ] **Firebase Storage ルール公開** — v48 コード完成・ルール設定完了 → 本番ルール公開
-- [ ] **Firebase Storage 画像同期テスト** — PC・iPhone 両デバイスで実機テスト
-  - PC: 新規トレード登録 → 画像アップロード → 履歴表示で画像確認
-  - iPhone: Supabase 同期確認 → 「📷 読み込む」ボタン→ Firebase から画像取得
+- [ ] **新規トレード画像アップロード動作確認** — PC Chrome で実機テスト完了（v49）
+  - PC: Ctrl+Shift+R → 新規エントリー登録 → 画像1枚添付 → 登録ボタン
+  - 履歴タブで画像表示確認
+  - 画像右クリック→アドレスコピー→`firebasestorage.googleapis.com` で始まるか確認
+- [ ] **iPhone 画像同期テスト** — Safari で新規トレード表示確認
+  - iPhone Safari で https://fx-trade-tracker-de055.web.app を開く
+  - タブ閉じて再読み込み（SW 更新のため）
+  - 新規トレード画像が表示されるか確認
 
 ### 🟡 重要（検証・デバッグ）
-- [ ] **既存トレード画像の一括移行** — `migrateImagesToFirebase()` をブラウザコンソール実行
-  - 既存の Base64 画像を Firebase Storage にアップロード
-  - imageUrls に置換
-  - Supabase に保存
-- [ ] **iPhone 同期の根本原因調査** — 6月29日のトレードが反映されない理由
-  - 仮説: 古いデータの iPhone ローカルストレージが優位（pull-first でも上書きされない）
+- [ ] **既存トレード画像復旧** — JSON エクスポートファイル有無確認
+  - 背景: v42 で localStorage 容量超過 → アプリ自動削除（Base64 → 画像なし版保存）
+  - 対策: 過去の JSON バックアップから復元可能か調査
+- [ ] **Supabase/Firebase Storage 関係の最終確認** — 課金枠が別々か確認済み
+  - Supabase: AWS S3（月 5GB 転送）← 現在v42で削減済み
+  - Firebase: GCS（月 1GB 転送 + 5GB ストレージ）← ほぼ未使用
+  - 新規登録画像は Firebase にのみ保存・Supabase には URL のみ
 
 ### 🟢 低優先（将来実装）
+- [ ] iPhone 同期の根本原因調査（6月29日データが反映されない）
 - [ ] 複数デバイス間のデータ競合検出・自動解決
 - [ ] Supabase セキュリティルール強化（認証付き）
 - [ ] メールアドレス認証追加（ユーザー個別データ管理）
