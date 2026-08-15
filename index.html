@@ -1234,6 +1234,108 @@
         <div id="sim-trade-rows" class="space-y-2"></div>
       </div>
 
+      <!-- ===== 確率ベース資金シミュレーション ===== -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-bold text-slate-600">📈 確率ベース資金シミュレーション</h3>
+          <button onclick="resetPsim()"
+            class="text-xs px-3 py-1.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 active:scale-95 transition-all font-semibold">
+            クリア
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 mb-3">月間チャンス回数・勝率・利確パターン比率から、資金の増え方のペースを試算します</p>
+
+        <!-- 初期リスク額 -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">初期リスク額（円）</label>
+          <div class="flex gap-1.5 mb-2 flex-wrap">
+            <button onclick="psimSetInitial(10000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">1万</button>
+            <button onclick="psimSetInitial(30000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">3万</button>
+            <button onclick="psimSetInitial(50000)"  class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">5万</button>
+            <button onclick="psimSetInitial(100000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">10万</button>
+            <button onclick="psimSetInitial(300000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">30万</button>
+            <button onclick="psimSetInitial(500000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">50万</button>
+            <button onclick="psimSetInitial(1000000)" class="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 text-slate-500 bg-white hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 active:scale-95 transition-all">100万</button>
+          </div>
+          <input type="number" id="psim-initial" placeholder="直接入力も可" step="1000" min="0"
+            oninput="renderPsim()"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 select-text">
+        </div>
+
+        <!-- チャンス回数・期間 -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">月間チャンス回数</label>
+            <input type="number" id="psim-chances" placeholder="例: 20" min="0" step="1" value="20"
+              oninput="renderPsim()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 select-text">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">シミュ期間（月）</label>
+            <input type="number" id="psim-months" placeholder="例: 12" min="1" step="1" value="12"
+              oninput="renderPsim()"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 select-text">
+          </div>
+        </div>
+
+        <!-- 勝率 -->
+        <div class="mb-3">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">勝率（%）<span class="text-slate-400 normal-case font-normal ml-1">残りは全て損切</span></label>
+          <input type="number" id="psim-winrate" placeholder="例: 50" min="0" max="100" step="1" value="50"
+            oninput="renderPsim()"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 select-text">
+        </div>
+
+        <!-- 利確パターン比率 -->
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">利確時の内訳（%）<span class="text-slate-400 normal-case font-normal ml-1" id="psim-ratio-total"></span></label>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <div class="text-[10px] font-bold text-emerald-500 mb-1 text-center">REG</div>
+              <input type="number" id="psim-reg" min="0" max="100" step="1" value="40"
+                oninput="renderPsim()"
+                class="w-full border border-emerald-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-emerald-400 select-text">
+            </div>
+            <div>
+              <div class="text-[10px] font-bold text-blue-500 mb-1 text-center">BIG</div>
+              <input type="number" id="psim-big" min="0" max="100" step="1" value="35"
+                oninput="renderPsim()"
+                class="w-full border border-blue-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400 select-text">
+            </div>
+            <div>
+              <div class="text-[10px] font-bold text-violet-500 mb-1 text-center">MAX</div>
+              <input type="number" id="psim-max" min="0" max="100" step="1" value="25"
+                oninput="renderPsim()"
+                class="w-full border border-violet-200 rounded-xl px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-violet-400 select-text">
+            </div>
+          </div>
+        </div>
+
+        <!-- サマリー -->
+        <div id="psim-summary" class="rounded-xl p-3 mb-3" style="background:#1e293b">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="text-center">
+              <div class="text-[9px] text-slate-400 mb-1">最終資金</div>
+              <div id="psim-final" class="text-sm font-black text-violet-300">−</div>
+            </div>
+            <div class="text-center">
+              <div class="text-[9px] text-slate-400 mb-1">増減率</div>
+              <div id="psim-growth-total" class="text-sm font-black text-slate-300">−</div>
+            </div>
+            <div class="text-center">
+              <div class="text-[9px] text-slate-400 mb-1">月平均増加率</div>
+              <div id="psim-growth-avg" class="text-sm font-black text-slate-300">−</div>
+            </div>
+          </div>
+          <div id="psim-note" class="text-[10px] text-center text-slate-500 mt-2"></div>
+        </div>
+
+        <!-- グラフ -->
+        <div id="psim-chart-wrap" class="hidden" style="height:200px">
+          <canvas id="psim-chart"></canvas>
+        </div>
+      </div>
+
       <!-- ===== 税金シミュレーター ===== -->
       <div class="bg-white rounded-2xl p-4 shadow-sm mb-4">
         <div class="flex items-center justify-between mb-4">
@@ -1734,6 +1836,7 @@
   let chartProfit  = null;
   let chartWinrate = null;
   let chartCapital = null;
+  let chartPsim    = null;
   let confirmCb    = null;
   let toastTimer   = null;
   // Image state
@@ -1992,7 +2095,7 @@
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'history') renderHistory();
     if (tab === 'stats')   { renderStats(); renderCalendar(); renderChanceRate(); }
-    if (tab === 'summary') { initChanceMemos(); renderChanceHistory(); renderTaxSim(); updateBackupReminder(); }
+    if (tab === 'summary') { initChanceMemos(); renderChanceHistory(); renderTaxSim(); renderPsim(); updateBackupReminder(); }
   }
 
   // ============================================================
@@ -2685,7 +2788,7 @@
     if (!t) return;
     editingId = id;
 
-    const mainPairs = ['US500','US100','US30','JP225','BTC/USD','ETH/USD','GOLD','SILVER','WTI','USD/JPY','EUR/JPY','GBP/JPY','EUR/USD','GBP/USD','AUD/JPY','AUD/USD','NZD/JPY','NZD/USD','CAD/JPY','USD/CAD','CHF/JPY','USD/CHF'];
+    const mainPairs = ['SPX500','NAS100','US30','JP225','UK100','DAX40','GOLD','SILVER','OIL','USD/JPY','EUR/JPY','GBP/JPY','EUR/USD','GBP/USD','AUD/USD','AUD/JPY','NZD/USD','NZD/JPY','USD/CHF','CHF/JPY','USD/CAD','CAD/JPY'];
     const subPairs  = ['','EUR/GBP','AUD/NZD','EUR/AUD','GBP/AUD','EUR/NZD','GBP/NZD','EUR/CHF','GBP/CHF','EUR/CAD','GBP/CAD'];
     const curMain   = t.pairMain || t.pair || '';
     const curSub    = t.pairSub  || '';
@@ -4459,6 +4562,163 @@
   // Format number with commas
   function fmt(n) {
     return Math.round(n).toLocaleString('ja-JP');
+  }
+
+  // ============================================================
+  // PROBABILITY-BASED CAPITAL SIMULATOR（確率ベース資金シミュレーション）
+  // ============================================================
+
+  function psimSetInitial(val) {
+    const el = document.getElementById('psim-initial');
+    if (el) { el.value = val; renderPsim(); }
+  }
+
+  function resetPsim() {
+    const ids = { 'psim-initial': '', 'psim-chances': '20', 'psim-months': '12', 'psim-winrate': '50', 'psim-reg': '40', 'psim-big': '35', 'psim-max': '25' };
+    Object.entries(ids).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    });
+    renderPsim();
+  }
+
+  // 与えられた回数の内訳を、指定順に均等分散した配列にする（Bresenham風の按分）
+  function psimInterleave(counts) {
+    const keys = Object.keys(counts).filter(k => counts[k] > 0);
+    const total = keys.reduce((s, k) => s + counts[k], 0);
+    const seq = [];
+    const done = {};
+    keys.forEach(k => done[k] = 0);
+    for (let i = 0; i < total; i++) {
+      let best = null, bestScore = -Infinity;
+      keys.forEach(k => {
+        const ratio = counts[k] / total;
+        const score = ratio * (i + 1) - done[k];
+        if (score > bestScore) { bestScore = score; best = k; }
+      });
+      seq.push(best);
+      done[best]++;
+    }
+    return seq;
+  }
+
+  function renderPsim() {
+    const initial   = parseInt(document.getElementById('psim-initial')?.value) || 0;
+    const chances   = parseInt(document.getElementById('psim-chances')?.value) || 0;
+    const months    = Math.max(1, parseInt(document.getElementById('psim-months')?.value) || 1);
+    const winrate   = Math.min(100, Math.max(0, parseFloat(document.getElementById('psim-winrate')?.value) || 0));
+    const regRaw    = Math.max(0, parseFloat(document.getElementById('psim-reg')?.value) || 0);
+    const bigRaw    = Math.max(0, parseFloat(document.getElementById('psim-big')?.value) || 0);
+    const maxRaw    = Math.max(0, parseFloat(document.getElementById('psim-max')?.value) || 0);
+
+    const ratioTotalEl = document.getElementById('psim-ratio-total');
+    const ratioSum = regRaw + bigRaw + maxRaw;
+    if (ratioTotalEl) {
+      ratioTotalEl.textContent = ratioSum > 0 ? `合計 ${Math.round(ratioSum)}%${Math.round(ratioSum) !== 100 ? '（自動調整）' : ''}` : '';
+    }
+
+    const finalEl   = document.getElementById('psim-final');
+    const totalEl   = document.getElementById('psim-growth-total');
+    const avgEl     = document.getElementById('psim-growth-avg');
+    const noteEl    = document.getElementById('psim-note');
+    const chartWrap = document.getElementById('psim-chart-wrap');
+
+    if (!initial || !chances || ratioSum <= 0) {
+      if (finalEl) finalEl.textContent = '−';
+      if (totalEl) totalEl.textContent = '−';
+      if (avgEl)   avgEl.textContent   = '−';
+      if (noteEl)  noteEl.textContent  = '初期リスク・チャンス回数・利確内訳を入力してください';
+      if (chartWrap) chartWrap.classList.add('hidden');
+      if (chartPsim) { chartPsim.destroy(); chartPsim = null; }
+      return;
+    }
+
+    // 利確内訳の比率を正規化（合計100%になるよう按分）
+    const regPct = regRaw / ratioSum;
+    const bigPct = bigRaw / ratioSum;
+    const maxPct = maxRaw / ratioSum;
+
+    let capital = initial;
+    let curRisk = initial;
+    const riskStack = [];
+    const labels = ['開始'];
+    const data   = [initial];
+
+    for (let m = 1; m <= months; m++) {
+      const winCount  = Math.round(chances * winrate / 100);
+      const lossCount = chances - winCount;
+      let regCount = Math.round(winCount * regPct);
+      let bigCount = Math.round(winCount * bigPct);
+      let maxCount = winCount - regCount - bigCount;
+      if (maxCount < 0) { maxCount = 0; }
+
+      const seq = psimInterleave({ max: maxCount, big: bigCount, reg: regCount, stoploss: lossCount });
+      seq.forEach(key => {
+        const cfg = SIM_RESULT[key];
+        const pnl = curRisk * cfg.mult;
+        capital += pnl;
+        if (key === 'stoploss') {
+          curRisk = riskStack.length > 0 ? riskStack.pop() : initial;
+        } else {
+          riskStack.push(curRisk);
+          curRisk = Math.abs(pnl);
+        }
+      });
+
+      labels.push(m + 'ヶ月');
+      data.push(capital);
+    }
+
+    const delta = capital - initial;
+    const totalGrowthPct = ((capital / initial - 1) * 100);
+    const avgGrowthPct = ((Math.pow(Math.max(capital, 0) / initial, 1 / months) - 1) * 100);
+
+    if (finalEl) {
+      finalEl.textContent = fmt(capital) + '円';
+      finalEl.style.color = capital >= initial ? '#a78bfa' : '#f87171';
+    }
+    if (totalEl) {
+      totalEl.textContent = (delta >= 0 ? '+' : '') + totalGrowthPct.toFixed(1) + '%';
+      totalEl.style.color = delta >= 0 ? '#34d399' : '#f87171';
+    }
+    if (avgEl) {
+      avgEl.textContent = (avgGrowthPct >= 0 ? '+' : '') + avgGrowthPct.toFixed(1) + '%/月';
+      avgEl.style.color = avgGrowthPct >= 0 ? '#34d399' : '#f87171';
+    }
+    if (noteEl) {
+      noteEl.textContent = `月${chances}回・勝率${winrate}%・${months}ヶ月間のシミュレーション`;
+    }
+
+    if (chartWrap) chartWrap.classList.remove('hidden');
+    const ctx = document.getElementById('psim-chart')?.getContext('2d');
+    if (ctx) {
+      if (chartPsim) chartPsim.destroy();
+      const isPositive = capital >= initial;
+      chartPsim = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            borderColor: isPositive ? '#8b5cf6' : '#EF4444',
+            backgroundColor: isPositive ? 'rgba(139,92,246,0.08)' : 'rgba(239,68,68,0.08)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: data.length > 40 ? 0 : 3,
+            pointHoverRadius: 5,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 10 }, color: '#94A3B8' }, grid: { display: false } },
+            y: { display: true, ticks: { font: { size: 10 }, color: '#94A3B8', callback: v => fmt(v) }, grid: { color: 'rgba(148,163,184,0.1)' } },
+          },
+        },
+      });
+    }
   }
 
   // ============================================================
