@@ -6,7 +6,7 @@
 .
 ├── index.html              ← 唯一のプロダクトコード
 ├── manifest.json           PWA マニフェスト
-├── sw.js                   Service Worker（オフライン対応・現在 v50）
+├── sw.js                   Service Worker（オフライン対応・現在 v51）
 ├── generate-icons.html     アイコン生成用（不使用）
 └── icons/                  PWA アイコン
 ```
@@ -731,34 +731,79 @@
 
 **最終更新**: 2026-08-15 — 確率ベース資金シミュレーター実装完了・コード構文チェックOK (sw v50)
 
+## 🔧 2026-08-16 セッション：確率ベース資金シミュレーター デプロイ・バグ修正（v51）
+
+**背景**
+- v50 確率シミュレーター実装完了したが Firebase Hosting デプロイ未実施
+- ユーザー実機テスト時に「勝率を 50% → 80% に変更しても最終資金が同じ 1,200,000円 のまま変わらない」バグ報告
+
+**実装内容**
+- [x] v50 Firebase Hosting デプロイ ✅ 2026-08-16
+  - 22ファイルアップロード・release complete
+  - ブラウザで確率シミュレーションカード表示確認 ✅
+- [x] バグ原因分析 ✅
+  - **原因**: 月ごとの `Math.round()` 丸め誤差
+  - 月間チャンス 3回で勝率 50% と 80% が同じ「勝ち2回」に丸まる
+  - 例: Math.round(3×50/100)=2回、Math.round(3×80/100)=2回
+- [x] バグ修正（v51）✅
+  - 月ごと計算 → **シミュ期間全体の一括計算** に変更
+  - 全体チャンス数でまとめて勝敗を決定してから月別に均等分散
+  - Bresenham型 `psimInterleave()` で各月に配置
+  - 月間 1～5回という少数チャンスでも精度向上
+- [x] Service Worker v50 → v51 ✅
+- [x] JS 構文チェック ALL OK ✅
+- [x] v51 Firebase Hosting デプロイ ✅ 2026-08-16
+  - 2ファイルアップロード・release complete
+
+**技術ポイント**
+```javascript
+// Before（月ごと丸め = バグ）
+for (let m = 1; m <= months; m++) {
+  const winCount = Math.round(chances * winrate / 100);
+  ...
+}
+
+// After（全体計算 + 月別分散 = 修正）
+const totalChances = chances * months;
+const totalWin = Math.round(totalChances * winrate / 100);
+const wlSeq = psimInterleave({ win: totalWin, loss: totalLoss });
+for (let m = 1; m <= months; m++) {
+  for (let c = 0; c < chances; c++) {
+    const key = wlSeq[globalIdx];  // 事前計算済みシーケンス
+    ...
+  }
+}
+```
+
+**テスト状況**
+- ✅ v50 デプロイ・UI 表示確認
+- ✅ バグ発見・原因分析・修正実装
+- ✅ v51 デプロイ完了
+- ⏳ ユーザーによる実機テスト検証待ち（勝率 50% vs 80% での結果差確認）
+
+**最終更新**: 2026-08-16 — v50 デプロイ・v51 丸め誤差バグ修正・Firebase Hosting デプロイ完了 (sw v51)
+
 ---
 
-## 📋 次セッション優先事項（2026-08-15 現在）
+## 📋 次セッション優先事項（2026-08-16 現在）
 
 ### 🔴 必須（実装優先度 High）
-- [ ] **確率ベース資金シミュレーターの実機テスト** — ブラウザで入力・グラフ表示動作確認（v50）
-  - 初期リスク 10万円
-  - 月間チャンス 20回・勝率 50%
-  - 利確内訳 REG 40% / BIG 35% / MAX 25%
-  - シミュ期間 12ヶ月
-  - グラフが表示される・最終資金・月平均増加率が計算されるか確認
-- [ ] **Firebase Storage 新規トレード画像アップロード動作確認** — PC Chrome で実機テスト完了（v48-v49）
+- [ ] **確率ベース資金シミュレーター実機テスト（v51）** — 勝率変更での結果差確認
+  - 初期リスク 30,000円、月間チャンス 3回、シミュ期間 3ヶ月
+  - 勝率 50% vs 80% での最終資金・月平均増加率が異なるか確認 ✅ v51 修正適用
+- [ ] **Firebase Storage 新規トレード画像アップロード動作確認** — PC Chrome で実機テスト（v48-v49）
   - PC: Ctrl+Shift+R → 新規エントリー登録 → 画像1枚添付 → 登録ボタン
   - 履歴タブで画像表示確認
   - 画像右クリック→アドレスコピー→`firebasestorage.googleapis.com` で始まるか確認
 - [ ] **iPhone 画像同期テスト** — Safari で新規トレード表示確認
   - iPhone Safari で https://fx-trade-tracker-de055.web.app を開く
-  - タブ閉じて再読み込み（SW v50 更新のため）
+  - タブ閉じて再読み込み（SW v51 更新のため）
   - PC で登録した画像トレードが表示されるか確認
 
 ### 🟡 重要（検証・デバッグ）
 - [ ] **既存トレード画像復旧** — JSON エクスポートファイル有無確認
   - 背景: v42 で localStorage 容量超過 → アプリ自動削除（Base64 → 画像なし版保存）
   - 対策: 過去の JSON バックアップから復元可能か調査
-- [ ] **確率ベース vs 手動シミュレーターの数値差異検証** — 想定される相違点の確認
-  - 手動シミュ：単純な入力順序（リスク固定）
-  - 確率ベース：Bresenham型均等分散 + 複利効果
-  - 同条件での計算結果が異なる理由を確認
 
 ### 🟢 低優先（将来実装）
 - [ ] iPhone 同期の根本原因調査（6月29日データが反映されない）
@@ -770,8 +815,8 @@
 
 ## 💾 リソース＆リンク
 
-**コード**: [index.html](index.html) (v50・確率ベース資金シミュ実装済み) / [sw.js](sw.js) (v50)
+**コード**: [index.html](index.html) (v51・確率ベース資金シミュ修正版) / [sw.js](sw.js) (v51)
 **ドキュメント**: [CLAUDE.md](CLAUDE.md) / [MEMORY.md](MEMORY.md)
 **リモート**: https://github.com/jiangchengban-art/fx-trade-tracker
-**ライブ**: https://fx-trade-tracker-de055.web.app (v49・最新デプロイ・v50はテスト待ち)
-**セッション記録**: `memory/archived_session_2026_07_29_30_fib_retrace.md`
+**ライブ**: https://fx-trade-tracker-de055.web.app (v51・最新デプロイ)
+**セッション記録**: `memory/archived_session_2026_08_16_psim_bugfix.md`

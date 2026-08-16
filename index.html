@@ -4644,16 +4644,24 @@
     const labels = ['開始'];
     const data   = [initial];
 
-    for (let m = 1; m <= months; m++) {
-      const winCount  = Math.round(chances * winrate / 100);
-      const lossCount = chances - winCount;
-      let regCount = Math.round(winCount * regPct);
-      let bigCount = Math.round(winCount * bigPct);
-      let maxCount = winCount - regCount - bigCount;
-      if (maxCount < 0) { maxCount = 0; }
+    // 全期間のチャンス回数をまとめて按分することで、月間チャンスが少ない場合の
+    // Math.round() 丸め誤差（例: 月3回では勝率50%と80%が同じ「勝ち2回」になる）を回避
+    const totalChances = chances * months;
+    const totalWin  = Math.round(totalChances * winrate / 100);
+    const totalLoss = totalChances - totalWin;
+    const wlSeq = psimInterleave({ win: totalWin, loss: totalLoss });
 
-      const seq = psimInterleave({ max: maxCount, big: bigCount, reg: regCount, stoploss: lossCount });
-      seq.forEach(key => {
+    let regTotal = Math.round(totalWin * regPct);
+    let bigTotal = Math.round(totalWin * bigPct);
+    let maxTotal = totalWin - regTotal - bigTotal;
+    if (maxTotal < 0) { maxTotal = 0; }
+    const winTypeSeq = psimInterleave({ max: maxTotal, big: bigTotal, reg: regTotal });
+
+    let winIdx = 0;
+    for (let m = 1; m <= months; m++) {
+      for (let c = 0; c < chances; c++) {
+        const globalIdx = (m - 1) * chances + c;
+        const key = wlSeq[globalIdx] === 'win' ? winTypeSeq[winIdx++] : 'stoploss';
         const cfg = SIM_RESULT[key];
         const pnl = curRisk * cfg.mult;
         capital += pnl;
@@ -4663,7 +4671,7 @@
           riskStack.push(curRisk);
           curRisk = Math.abs(pnl);
         }
-      });
+      }
 
       labels.push(m + 'ヶ月');
       data.push(capital);
